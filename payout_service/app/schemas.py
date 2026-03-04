@@ -1,6 +1,12 @@
 from pydantic import BaseModel
 
 
-class PayoutServiceRequest(BaseModel):
-    external_id: str
+class ProviderBalanceResponse(BaseModel):
+    provider_id: str
+    balance_cents: int
+
+
+class PayoutInitiatedResponse(BaseModel):
+    provider_id: str
     amount_cents: int
+    correlation_id: str

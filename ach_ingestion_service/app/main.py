@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from shared.events.schemas import EFTReceived
+from shared.events.schemas import ClaimReference, EFTReceived
 from shared.servicebus.client import publish
 
 from .db import Base, SessionLocal, engine
@@ -97,6 +97,7 @@ async def ingest_ach(payload: AchIngestionServiceRequest, db: Session = Depends(
         trace_number=parsed_data.trace_number,
         payer_id=parsed_data.payer_id,
         provider_id=parsed_data.provider_id,
+        claims=[ClaimReference(claim_id="EFT_TOTAL", amount_cents=parsed_data.amount_cents)],
     )
 
     await publish(

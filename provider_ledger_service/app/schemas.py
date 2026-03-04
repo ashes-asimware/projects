@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
 
-class ProviderLedgerServiceRequest(BaseModel):
-    external_id: str
-    amount_cents: int
+class ProviderBalanceResponse(BaseModel):
+    provider_id: str
+    balance_cents: int
