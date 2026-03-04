@@ -1,4 +1,8 @@
+import logging
+
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
+
+logger = logging.getLogger(__name__)
 
 
 class ServiceBusPublisher:
@@ -7,6 +11,7 @@ class ServiceBusPublisher:
 
     def send(self, queue_name: str, message: str) -> bool:
         if not self.connection_string:
+            logger.warning("Service Bus connection string is not configured; message not sent")
             return False
         with ServiceBusClient.from_connection_string(self.connection_string) as client:
             with client.get_queue_sender(queue_name=queue_name) as sender:
