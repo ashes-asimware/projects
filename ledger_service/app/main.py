@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
+from shared.middleware import apply_common_middleware
 from .db import Base, SessionLocal, engine
 from .models import JournalEntry, JournalLine
 from .schemas import JournalEntryResponse, PostEntryRequest
@@ -153,6 +154,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="ledger_service", lifespan=lifespan)
+apply_common_middleware(app)
 
 
 @app.get("/health")

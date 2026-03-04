@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
+from shared.middleware import apply_common_middleware
 from shared.events.schemas import (
     ClaimReference,
     ReconciliationCompleted,
@@ -193,6 +194,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="reconciliation_service", lifespan=lifespan)
+apply_common_middleware(app)
 
 
 @app.get("/health")

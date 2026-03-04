@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from shared.middleware import apply_common_middleware
 from shared.events.schemas import BankStatementReceived, ClaimReference
 from shared.servicebus.client import ServiceBusPublisher
 
@@ -28,6 +29,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="bank_statement_ingestion_service", lifespan=lifespan)
+apply_common_middleware(app)
 
 
 def get_db() -> Session:

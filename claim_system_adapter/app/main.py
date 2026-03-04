@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
+from shared.middleware import apply_common_middleware
 from shared.events.schemas import ClaimPaymentPosted, ClaimReference
 from shared.servicebus.client import ServiceBusPublisher
 
@@ -138,6 +139,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="claim_system_adapter", lifespan=lifespan)
+apply_common_middleware(app)
 
 
 @app.get("/health")
