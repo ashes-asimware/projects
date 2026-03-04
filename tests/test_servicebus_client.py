@@ -11,6 +11,12 @@ class _FakeServiceBusMessage:
         self.correlation_id = correlation_id
 
 
+class _FakeReceivedMessage:
+    def __init__(self, body, correlation_id=None):
+        self.body = body
+        self.correlation_id = correlation_id
+
+
 class _FakeSender:
     def __init__(self, should_fail=False):
         self.should_fail = should_fail
@@ -83,15 +89,15 @@ class ServiceBusClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sender.sent_messages[0].correlation_id, "corr-123")
 
     async def test_subscribe_retries_then_completes_and_passes_correlation_id(self):
-        message = type("Msg", (), {"body": [b'{"id": 1}'], "correlation_id": "corr-xyz"})()
+        message = _FakeReceivedMessage([b'{"id": 1}'], correlation_id="corr-xyz")
         receiver = _FakeReceiver([message])
         fake_client = _FakeClient(receiver=receiver)
-        calls = {"count": 0, "correlation_id": None}
+        handler_state = {"count": 0, "correlation_id": None}
 
         async def flaky_handler(payload, correlation_id):
-            calls["count"] += 1
-            calls["correlation_id"] = correlation_id
-            if calls["count"] == 1:
+            handler_state["count"] += 1
+            handler_state["correlation_id"] = correlation_id
+            if handler_state["count"] == 1:
                 raise RuntimeError("transient handler failure")
 
         with patch.object(client.AsyncServiceBusClient, "from_connection_string", return_value=fake_client):
@@ -105,13 +111,13 @@ class ServiceBusClientTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(processed, 1)
-        self.assertEqual(calls["count"], 2)
-        self.assertEqual(calls["correlation_id"], "corr-xyz")
+        self.assertEqual(handler_state["count"], 2)
+        self.assertEqual(handler_state["correlation_id"], "corr-xyz")
         self.assertEqual(len(receiver.completed), 1)
         self.assertEqual(len(receiver.dead_lettered), 0)
 
     async def test_subscribe_dead_letters_after_retry_exhaustion(self):
-        message = type("Msg", (), {"body": [b'{"id": 2}'], "correlation_id": "corr-dead"})()
+        message = _FakeReceivedMessage([b'{"id": 2}'], correlation_id="corr-dead")
         receiver = _FakeReceiver([message])
         fake_client = _FakeClient(receiver=receiver)
 

@@ -15,7 +15,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only when optional d
     class AsyncServiceBusClient:  # type: ignore[no-redef]
         @staticmethod
         def from_connection_string(*_args: Any, **_kwargs: Any) -> Any:
-            raise ModuleNotFoundError("azure-servicebus is required for async Service Bus operations")
+            raise ModuleNotFoundError("azure-servicebus is required for Service Bus operations")
 
 DEFAULT_CONNECTION_STRING_ENV_VARS = (
     "AZURE_SERVICEBUS_CONNECTION_STRING",
@@ -64,10 +64,10 @@ def _build_message_body(payload: Any) -> str | bytes:
 
 def _decode_message_body(message: Any) -> str:
     body = b"".join(message.body)
-    return body.decode("utf-8")
+    return body.decode("utf-8", errors="replace")
 
 
-async def _invoke_handler(
+async def _call_handler(
     handler: Callable[[str, str | None], Awaitable[None] | None],
     payload: str,
     correlation_id: str | None,
@@ -145,10 +145,11 @@ async def subscribe(
             for message in messages:
                 payload = _decode_message_body(message)
                 correlation_id = getattr(message, "correlation_id", None)
+                handled = False
                 for attempt in range(max_retries + 1):
                     try:
-                        await _invoke_handler(handler, payload, correlation_id)
-                        await receiver.complete_message(message)
+                        await _call_handler(handler, payload, correlation_id)
+                        handled = True
                         break
                     except Exception as exc:
                         if attempt >= max_retries:
@@ -159,4 +160,6 @@ async def subscribe(
                             )
                             break
                         await asyncio.sleep(retry_delay_seconds * (2**attempt))
+                if handled:
+                    await receiver.complete_message(message)
             return len(messages)
