@@ -13,6 +13,7 @@ from shared.events.schemas import (
     ProviderPayoutSent,
     ReconciliationCompleted,
     RemittanceReceived,
+    RemittanceException,
 )
 
 
@@ -29,6 +30,7 @@ class SharedEventSchemaTests(unittest.TestCase):
             ClaimPaymentPosted,
             ACHReturnReceived,
             NOCReceived,
+            RemittanceException,
         ]
 
         for event_class in event_classes:

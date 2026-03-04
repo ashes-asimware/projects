@@ -63,3 +63,7 @@ class ACHReturnReceived(InterServiceEvent):
 
 class NOCReceived(InterServiceEvent):
     pass
+
+
+class RemittanceException(InterServiceEvent):
+    reason: str | None = None
