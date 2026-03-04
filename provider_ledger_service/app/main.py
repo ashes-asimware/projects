@@ -27,7 +27,7 @@ def get_db() -> Session:
         db.close()
 
 
-def _upsert_provider_balance(db: Session, provider_id: str, delta_cents: int) -> ProviderBalance:
+def _add_to_provider_balance(db: Session, provider_id: str, delta_cents: int) -> ProviderBalance:
     record = db.query(ProviderBalance).filter_by(provider_id=provider_id).first()
     if record is None:
         record = ProviderBalance(provider_id=provider_id, balance_cents=0)
@@ -55,7 +55,7 @@ async def _handle_queue_message(body: str) -> ProviderBalance:
     total_cents = sum(int(c.get("amount_cents", 0)) for c in claims)
     db = SessionLocal()
     try:
-        balance = _upsert_provider_balance(db, data.get("provider_id", ""), total_cents)
+        balance = _add_to_provider_balance(db, data.get("provider_id", ""), total_cents)
         _publish_balance_update(balance)
         return balance
     finally:

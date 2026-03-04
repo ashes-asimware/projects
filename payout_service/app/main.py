@@ -36,7 +36,7 @@ def get_db() -> Session:
         db.close()
 
 
-def _upsert_balance(db: Session, provider_id: str, balance_cents: int) -> ProviderBalance:
+def _set_balance(db: Session, provider_id: str, balance_cents: int) -> ProviderBalance:
     record = db.query(ProviderBalance).filter_by(provider_id=provider_id).first()
     if record is None:
         record = ProviderBalance(provider_id=provider_id, balance_cents=balance_cents)
@@ -73,7 +73,7 @@ def _initiate_payout(db: Session, balance: ProviderBalance, amount_cents: int) -
 
 
 def _process_balance_update(db: Session, provider_id: str, balance_cents: int) -> ProviderPayoutInitiated | None:
-    balance = _upsert_balance(db, provider_id, balance_cents)
+    balance = _set_balance(db, provider_id, balance_cents)
     threshold = _payout_threshold_cents()
     if balance.balance_cents >= threshold:
         return _initiate_payout(db, balance, balance.balance_cents)
@@ -159,8 +159,10 @@ def get_balance(provider_id: str, db: Session = Depends(get_db)) -> ProviderBala
 @app.post("/trigger-payout/{provider_id}", response_model=PayoutInitiatedResponse)
 def trigger_payout(provider_id: str, db: Session = Depends(get_db)) -> PayoutInitiatedResponse:
     balance = db.query(ProviderBalance).filter_by(provider_id=provider_id).first()
-    if balance is None or balance.balance_cents <= 0:
+    if balance is None:
         raise HTTPException(status_code=404, detail="Provider balance not found")
+    if balance.balance_cents <= 0:
+        raise HTTPException(status_code=400, detail="No available balance for payout")
     event = _initiate_payout(db, balance, balance.balance_cents)
     return PayoutInitiatedResponse(
         provider_id=provider_id,
