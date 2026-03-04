@@ -2,7 +2,8 @@ from contextlib import asynccontextmanager
 import hashlib
 import json
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from shared.events.schemas import EFTReceived
@@ -69,7 +70,10 @@ def _build_correlation_id(parsed_data: ParsedAchSettlementData) -> str:
 
 @app.post("/ingest-ach")
 async def ingest_ach(payload: AchIngestionServiceRequest, db: Session = Depends(get_db)) -> EFTReceived:
-    parsed_data = _parse_ach_settlement_data(payload.settlement_data)
+    try:
+        parsed_data = _parse_ach_settlement_data(payload.settlement_data)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail="Invalid ACH settlement data") from exc
     correlation_id = _build_correlation_id(parsed_data)
 
     record = ProcessingRecord(external_id=parsed_data.trace_number, amount_cents=parsed_data.amount_cents)

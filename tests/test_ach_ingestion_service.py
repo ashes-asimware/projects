@@ -2,6 +2,7 @@ import hashlib
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from fastapi import HTTPException
 from ach_ingestion_service.app.main import (
     _build_correlation_id,
     _parse_ach_settlement_data,
@@ -68,6 +69,16 @@ class AchIngestionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["topic_name"], "eft-received")
         self.assertEqual(kwargs["correlation_id"], event.correlation_id)
         self.assertEqual(kwargs["payload"]["trace_number"], "trace-123")
+
+    async def test_ingest_ach_rejects_invalid_settlement_data(self) -> None:
+        fake_db = _FakeDB()
+        request = AchIngestionServiceRequest(settlement_data="not-a-valid-settlement")
+
+        with self.assertRaises(HTTPException) as context:
+            await ingest_ach(request, db=fake_db)
+
+        self.assertEqual(context.exception.status_code, 422)
+        self.assertEqual(context.exception.detail, "Invalid ACH settlement data")
 
 
 if __name__ == "__main__":
