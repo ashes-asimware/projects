@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
@@ -8,7 +10,14 @@ from .db import Base, SessionLocal, engine
 from .models import ProcessingRecord
 from .schemas import ProviderLedgerServiceRequest
 
-app = FastAPI(title="provider_ledger_service")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title="provider_ledger_service", lifespan=lifespan)
 publisher = ServiceBusPublisher()
 
 
@@ -18,11 +27,6 @@ def get_db() -> Session:
         yield db
     finally:
         db.close()
-
-
-@app.on_event("startup")
-def startup() -> None:
-    Base.metadata.create_all(bind=engine)
 
 
 @app.get("/health")
@@ -35,6 +39,7 @@ def process(payload: ProviderLedgerServiceRequest, db: Session = Depends(get_db)
     record = ProcessingRecord(external_id=payload.external_id, amount_cents=payload.amount_cents)
     db.add(record)
     db.commit()
+    db.refresh(record)
     event = ServiceEvent(
         event_type="provider_ledger_service.received",
         source_service="provider_ledger_service",

@@ -1,4 +1,4 @@
-from azure.servicebus import ServiceBusClient
+from azure.servicebus import ServiceBusClient, ServiceBusMessage
 
 
 class ServiceBusPublisher:
@@ -10,7 +10,5 @@ class ServiceBusPublisher:
             return False
         with ServiceBusClient.from_connection_string(self.connection_string) as client:
             with client.get_queue_sender(queue_name=queue_name) as sender:
-                from azure.servicebus import ServiceBusMessage
-
                 sender.send_messages(ServiceBusMessage(message))
         return True
