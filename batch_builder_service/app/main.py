@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
+from shared.middleware import apply_common_middleware
 from shared.events.schemas import ClaimReference, ProviderPayoutInitiated, ProviderPayoutSent
 from shared.servicebus.client import ServiceBusPublisher
 
@@ -177,6 +178,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="batch_builder_service", lifespan=lifespan)
+apply_common_middleware(app)
 
 
 def get_db() -> Session:

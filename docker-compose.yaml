@@ -1,0 +1,156 @@
+version: "3.9"
+
+services:
+  servicebus:
+    image: mcr.microsoft.com/azure-messaging/servicebus/emulator:latest
+    container_name: servicebus
+    environment:
+      - ACCEPT_EULA=Y
+    ports:
+      - "5671:5671"
+      - "5672:5672"
+      - "8081:8081"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  ach_ingestion_service:
+    build:
+      context: ./ach_ingestion_service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/platform
+      SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus.local/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local
+      API_KEY: local-dev-key
+    depends_on:
+      - postgres
+      - servicebus
+    ports:
+      - "8010:8000"
+
+  ledger_service:
+    build:
+      context: ./ledger_service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/platform
+      SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus.local/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local
+      API_KEY: local-dev-key
+    depends_on:
+      - postgres
+      - servicebus
+    ports:
+      - "8011:8000"
+
+  remittance_ingestion_service:
+    build:
+      context: ./remittance_ingestion_service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/platform
+      SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus.local/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local
+      API_KEY: local-dev-key
+    depends_on:
+      - postgres
+      - servicebus
+    ports:
+      - "8012:8000"
+
+  pairing_service:
+    build:
+      context: ./pairing_service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/platform
+      SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus.local/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local
+      API_KEY: local-dev-key
+    depends_on:
+      - postgres
+      - servicebus
+    ports:
+      - "8013:8000"
+
+  provider_ledger_service:
+    build:
+      context: ./provider_ledger_service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/platform
+      SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus.local/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local
+      API_KEY: local-dev-key
+    depends_on:
+      - postgres
+      - servicebus
+    ports:
+      - "8014:8000"
+
+  payout_service:
+    build:
+      context: ./payout_service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/platform
+      SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus.local/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local
+      API_KEY: local-dev-key
+    depends_on:
+      - postgres
+      - servicebus
+    ports:
+      - "8015:8000"
+
+  batch_builder_service:
+    build:
+      context: ./batch_builder_service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/platform
+      SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus.local/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local
+      API_KEY: local-dev-key
+    depends_on:
+      - postgres
+      - servicebus
+    ports:
+      - "8016:8000"
+
+  reconciliation_service:
+    build:
+      context: ./reconciliation_service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/platform
+      SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus.local/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local
+      API_KEY: local-dev-key
+    depends_on:
+      - postgres
+      - servicebus
+    ports:
+      - "8017:8000"
+
+  claim_system_adapter:
+    build:
+      context: ./claim_system_adapter
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/platform
+      SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus.local/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local
+      API_KEY: local-dev-key
+    depends_on:
+      - postgres
+      - servicebus
+    ports:
+      - "8018:8000"
+
+  bank_statement_ingestion_service:
+    build:
+      context: ./bank_statement_ingestion_service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/platform
+      SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus.local/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local
+      API_KEY: local-dev-key
+    depends_on:
+      - postgres
+      - servicebus
+    ports:
+      - "8019:8000"
+
+volumes:
+  postgres_data:

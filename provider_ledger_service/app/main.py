@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
+from shared.middleware import apply_common_middleware
 from shared.servicebus.client import ServiceBusPublisher
 
 from .db import Base, SessionLocal, engine
@@ -106,6 +107,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="provider_ledger_service", lifespan=lifespan)
+apply_common_middleware(app)
 publisher = ServiceBusPublisher()
 
 

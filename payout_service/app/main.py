@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
+from shared.middleware import apply_common_middleware
 from shared.events.schemas import ClaimReference, ProviderPayoutInitiated
 from shared.servicebus.client import ServiceBusPublisher
 
@@ -137,6 +138,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="payout_service", lifespan=lifespan)
+apply_common_middleware(app)
 publisher = ServiceBusPublisher()
 
 
