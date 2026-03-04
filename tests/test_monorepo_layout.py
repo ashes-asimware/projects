@@ -15,6 +15,7 @@ class MonorepoLayoutTests(unittest.TestCase):
             "batch_builder_service",
             "reconciliation_service",
             "claim_system_adapter",
+            "bank_statement_ingestion_service",
         ]
 
     def test_service_directories_and_dockerfiles_exist(self) -> None:

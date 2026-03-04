@@ -18,6 +18,7 @@ SUBSCRIBED_QUEUES = [
     "eft_received_queue",
     "eft_matched_queue",
     "provider_payout_sent_queue",
+    "payout_sent_queue",
     "ach_return_queue",
 ]
 
@@ -26,6 +27,7 @@ _QUEUE_ENTRY_TYPES: dict[str, str] = {
     "eft_received_queue": "EFT_RECEIVED",
     "eft_matched_queue": "EFT_MATCHED",
     "provider_payout_sent_queue": "PAYOUT_SENT",
+    "payout_sent_queue": "PAYOUT_SENT",
     "ach_return_queue": "ACH_RETURN",
 }
 
@@ -34,6 +36,7 @@ _QUEUE_ACCOUNTS: dict[str, tuple[str, str]] = {
     "eft_received_queue": ("1010-CASH-CLEARING", "2010-EFT-SUSPENSE"),
     "eft_matched_queue": ("2010-EFT-SUSPENSE", "2020-CLAIMS-PAYABLE"),
     "provider_payout_sent_queue": ("2020-CLAIMS-PAYABLE", "1010-CASH-CLEARING"),
+    "payout_sent_queue": ("2020-CLAIMS-PAYABLE", "1010-CASH-CLEARING"),
     "ach_return_queue": ("2010-EFT-SUSPENSE", "2030-ACH-RETURNS"),
 }
 
