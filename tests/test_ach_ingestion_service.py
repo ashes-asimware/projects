@@ -78,7 +78,10 @@ class AchIngestionServiceTests(unittest.IsolatedAsyncioTestCase):
             await ingest_ach(request, db=fake_db)
 
         self.assertEqual(context.exception.status_code, 422)
-        self.assertEqual(context.exception.detail, "Invalid ACH settlement data")
+        self.assertEqual(context.exception.detail["message"], "Invalid ACH settlement data")
+        errors = context.exception.detail["errors"]
+        self.assertTrue(errors)
+        self.assertEqual(errors[0]["type"], "missing")
 
 
 if __name__ == "__main__":

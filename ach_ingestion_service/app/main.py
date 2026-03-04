@@ -44,7 +44,7 @@ def _parse_ach_settlement_data(settlement_data: str) -> ParsedAchSettlementData:
     except json.JSONDecodeError:
         pass
 
-    parsed_pairs: dict[str, str] = {}
+    parsed_pairs: dict[str, str | int] = {}
     for pair in settlement_data.split(","):
         segment = pair.strip()
         if not segment:
@@ -55,7 +55,15 @@ def _parse_ach_settlement_data(settlement_data: str) -> ParsedAchSettlementData:
             key, value = segment.split(":", 1)
         else:
             continue
-        parsed_pairs[key.strip()] = value.strip()
+        normalized_key = key.strip()
+        normalized_value = value.strip()
+        if normalized_key == "amount_cents":
+            try:
+                parsed_pairs[normalized_key] = int(normalized_value)
+            except ValueError:
+                parsed_pairs[normalized_key] = normalized_value
+        else:
+            parsed_pairs[normalized_key] = normalized_value
 
     return ParsedAchSettlementData(**parsed_pairs)
 
@@ -73,7 +81,10 @@ async def ingest_ach(payload: AchIngestionServiceRequest, db: Session = Depends(
     try:
         parsed_data = _parse_ach_settlement_data(payload.settlement_data)
     except ValidationError as exc:
-        raise HTTPException(status_code=422, detail="Invalid ACH settlement data") from exc
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "Invalid ACH settlement data", "errors": exc.errors()},
+        ) from exc
     correlation_id = _build_correlation_id(parsed_data)
 
     record = ProcessingRecord(external_id=parsed_data.trace_number, amount_cents=parsed_data.amount_cents)
