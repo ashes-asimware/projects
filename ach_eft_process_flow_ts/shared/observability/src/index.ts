@@ -71,6 +71,25 @@ export const createLogger = (name: string) =>
     },
   });
 
+const errorLogger = createLogger("http-error");
+
+export const errorHandlingMiddleware = (
+  err: any,
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  errorLogger.error({ err, correlationId: getCorrelationId() }, "Unhandled error");
+  if (res.headersSent) {
+    return next(err);
+  }
+  const status = (err && (err.status || err.statusCode)) || 500;
+  res.status(status).json({
+    message: err?.message || "Internal server error",
+    correlationId: getCorrelationId(),
+  });
+};
+
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR);
 
 export const setupTracing = (serviceName: string) => {
