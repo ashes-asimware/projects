@@ -65,7 +65,7 @@ class MockClaimSystem {
 describe("ACH to payout happy-path integration", () => {
   it("simulates full event flow across services", async () => {
     const bus = new KafkaTestHarness();
-    const bank = new MockBankAdapter(bus);
+    const bankAdapter = new MockBankAdapter(bus);
     const claimSystem = new MockClaimSystem(bus);
 
     const baseEvent = {

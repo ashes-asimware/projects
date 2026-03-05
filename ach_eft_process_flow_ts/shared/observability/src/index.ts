@@ -106,7 +106,7 @@ export const errorHandlingMiddleware = (
   }
   const status = resolveStatus(err);
   res.status(status).json({
-    message: error?.message || "Internal server error",
+    message: error.message || "Internal server error",
     correlationId: getCorrelationId(),
   });
 };
