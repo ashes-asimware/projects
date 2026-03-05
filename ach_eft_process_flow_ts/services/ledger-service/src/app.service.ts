@@ -15,7 +15,7 @@ export class AppService implements OnModuleInit {
   async onModuleInit() {
     for (const topic of CONSUME_TOPICS) {
       await subscribe(topic as any, async (envelope) => {
-        this.logger.info({ topic, eventType: envelope.metadata.eventType }, 'Event consumed');
+        this.logger.info({ topic, eventType: envelope.metadata.eventType }, 'Event consumed (scaffold handler)');
       });
     }
   }

@@ -46,12 +46,16 @@ const kafka = new Kafka({
 
 const producer = kafka.producer();
 let producerConnected = false;
+let producerReadyPromise: Promise<void> | null = null;
 
 async function ensureProducer() {
-  if (!producerConnected) {
-    await producer.connect();
-    producerConnected = true;
+  if (producerConnected) return;
+  if (!producerReadyPromise) {
+    producerReadyPromise = producer.connect().then(() => {
+      producerConnected = true;
+    });
   }
+  await producerReadyPromise;
 }
 
 export async function publish<T extends keyof typeof validators>(
@@ -99,7 +103,11 @@ export async function publish<T extends keyof typeof validators>(
     logger.info({ topic, eventType, correlationId }, "Event published");
   } catch (err) {
     logger.error({ err, topic, eventType }, "Failed to publish event");
-    await sendToDeadLetter(topic, envelope);
+    try {
+      await sendToDeadLetter(topic, envelope);
+    } catch (dlqError) {
+      logger.error({ dlqError, topic }, "Failed to send to DLQ after publish error");
+    }
     throw err;
   } finally {
     span.end();
@@ -176,6 +184,16 @@ export async function subscribe<T>(
       });
     },
   });
+
+  const disconnect = async () => {
+    try {
+      await consumer.disconnect();
+    } catch (err) {
+      logger.error({ err }, "Error disconnecting Kafka consumer");
+    }
+  };
+  process.once("SIGINT", disconnect);
+  process.once("SIGTERM", disconnect);
 }
 
 function parseEnvelope<T>(message: Message): EventEnvelope<T> | null {

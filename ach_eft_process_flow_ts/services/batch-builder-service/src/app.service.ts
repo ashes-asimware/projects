@@ -4,6 +4,7 @@ import { KafkaTopics, validateEvent } from '@shared/events';
 import { publish, subscribe } from '@shared/kafka';
 import { createLogger } from '@shared/observability';
 
+// Placeholder event representing outbound batches that have been built and sent.
 const PUBLISH_EVENT_TYPE = 'ProviderPayoutSentV1';
 const PUBLISH_TOPIC = KafkaTopics.payoutSent;
 const CONSUME_TOPICS = [KafkaTopics.payoutInitiated];
@@ -15,7 +16,7 @@ export class AppService implements OnModuleInit {
   async onModuleInit() {
     for (const topic of CONSUME_TOPICS) {
       await subscribe(topic as any, async (envelope) => {
-        this.logger.info({ topic, eventType: envelope.metadata.eventType }, 'Event consumed');
+        this.logger.info({ topic, eventType: envelope.metadata.eventType }, 'Event consumed (scaffold handler)');
       });
     }
   }
