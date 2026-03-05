@@ -110,7 +110,10 @@ export async function publish<T extends keyof typeof validators>(
     logger.error({ err, topic, eventType }, "Failed to publish event");
     try {
       await sendToDeadLetter(topic, envelope);
-      logger.warn({ topic, eventType, correlationId }, "Event redirected to DLQ after publish failure");
+      logger.warn(
+        { topic, eventType, correlationId, err },
+        "Event redirected to DLQ after publish failure"
+      );
     } catch (dlqError) {
       logger.error({ dlqError, topic }, "Failed to send to DLQ after publish error");
     }
