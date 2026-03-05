@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { Kafka, Message } from "kafkajs";
 import { context, trace } from "@opentelemetry/api";
-import pino from "pino";
 import { z } from "zod";
 import {
   EventEnvelope,

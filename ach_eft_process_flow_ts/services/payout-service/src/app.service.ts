@@ -5,6 +5,8 @@ import { publish, subscribe } from '@shared/kafka';
 import { createLogger } from '@shared/observability';
 
 const PAYOUT_SENT_EVENT = 'ProviderPayoutSentV1';
+const ACH_RETURN_EVENT = 'ACHReturnReceivedV1';
+const NOC_EVENT = 'NOCReceivedV1';
 
 @Injectable()
 export class AppService implements OnModuleInit {
@@ -24,16 +26,16 @@ export class AppService implements OnModuleInit {
   }
 
   async publishAchReturn(body: any) {
-    const payload = this.buildPayload('ACHReturnReceivedV1', body);
-    validateEvent('ACHReturnReceivedV1', payload);
-    await publish(KafkaTopics.achReturn, payload, 'ACHReturnReceivedV1');
+    const payload = this.buildPayload(ACH_RETURN_EVENT, body);
+    validateEvent(ACH_RETURN_EVENT, payload);
+    await publish(KafkaTopics.achReturn, payload, ACH_RETURN_EVENT);
     return { correlationId: payload.correlationId, eventType: payload.eventType };
   }
 
   async publishNoc(body: any) {
-    const payload = this.buildPayload('NOCReceivedV1', body);
-    validateEvent('NOCReceivedV1', payload);
-    await publish(KafkaTopics.nocReceived, payload, 'NOCReceivedV1');
+    const payload = this.buildPayload(NOC_EVENT, body);
+    validateEvent(NOC_EVENT, payload);
+    await publish(KafkaTopics.nocReceived, payload, NOC_EVENT);
     return { correlationId: payload.correlationId, eventType: payload.eventType };
   }
 
