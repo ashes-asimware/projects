@@ -65,6 +65,7 @@ class MockClaimSystem {
 describe("ACH to payout happy-path integration", () => {
   it("simulates full event flow across services", async () => {
     const bus = new KafkaTestHarness();
+    // Instantiation registers mock handlers on the in-memory bus.
     const mockBankAdapter = new MockBankAdapter(bus);
     const mockClaimSystem = new MockClaimSystem(bus);
 
@@ -128,7 +129,10 @@ describe("ACH to payout happy-path integration", () => {
       eventType: "RemittanceReceivedV1",
     });
 
-    assert.ok(mockClaimSystem.receivedClaims.length > 0, "Claim system received posted claim");
+    assert.ok(
+      mockClaimSystem.receivedClaims.length > 0,
+      'Claim system received posted claim'
+    );
 
     const topicsInOrder = bus.observed.map((e) => e.topic);
     assert.deepStrictEqual(topicsInOrder, [

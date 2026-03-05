@@ -19,6 +19,7 @@ import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions"
 import { diag, DiagConsoleLogger, DiagLogLevel, trace } from "@opentelemetry/api";
 
 const asyncLocalStorage = new AsyncLocalStorage<{ correlationId: string }>();
+const DEFAULT_ERROR_MESSAGE = "Unhandled error";
 const normalizeError = (value: unknown): Error =>
   value instanceof Error ? value : new Error(String(value));
 const resolveStatus = (value: unknown): number => {
@@ -106,7 +107,7 @@ export const errorHandlingMiddleware = (
   }
   const status = resolveStatus(err);
   res.status(status).json({
-    message: error.message || "Unhandled error",
+    message: error.message || DEFAULT_ERROR_MESSAGE,
     correlationId: getCorrelationId(),
   });
 };
@@ -124,7 +125,7 @@ export class GlobalErrorFilter implements ExceptionFilter {
       message:
         exception instanceof HttpException
           ? exception.message
-          : "Unhandled error",
+          : DEFAULT_ERROR_MESSAGE,
       correlationId: getCorrelationId(),
     });
   }
