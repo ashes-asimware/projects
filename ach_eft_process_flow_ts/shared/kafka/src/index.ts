@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { Kafka, Message } from "kafkajs";
 import { context, trace } from "@opentelemetry/api";
 import pino from "pino";
@@ -33,12 +34,12 @@ const kafka = new Kafka({
 });
 
 const producer = kafka.producer();
+let producerConnected = false;
 
 async function ensureProducer() {
-  if (!producer["__connected"]) {
+  if (!producerConnected) {
     await producer.connect();
-    // @ts-ignore
-    producer["__connected"] = true;
+    producerConnected = true;
   }
 }
 
@@ -50,7 +51,7 @@ export async function publish<T extends keyof typeof validators>(
   const correlationId =
     (payload as any)?.correlationId ||
     getCorrelationId() ||
-    `corr-${Date.now()}-${Math.random()}`;
+    randomUUID();
 
   const parsed = validators[eventType].parse(payload);
   const envelope: EventEnvelope<typeof parsed> = {
@@ -113,10 +114,12 @@ export async function subscribe<T>(
   const consumer = kafka.consumer({
     groupId: `group-${typeof topic === "string" ? topic : KafkaTopics[topic]}`,
   });
+  const subscribeFromBeginning =
+    process.env.KAFKA_SUBSCRIBE_FROM_BEGINNING === "true";
   await consumer.connect();
   await consumer.subscribe({
     topic: typeof topic === "string" ? topic : KafkaTopics[topic],
-    fromBeginning: false,
+    fromBeginning: subscribeFromBeginning,
   });
 
   await consumer.run({
@@ -125,7 +128,7 @@ export async function subscribe<T>(
       const correlationId =
         envelope?.metadata?.correlationId ||
         message.headers?.["x-correlation-id"]?.toString() ||
-        `corr-${Date.now()}`;
+        randomUUID();
 
       await withCorrelationId(correlationId, async () => {
         const ctx = trace.setSpan(
@@ -146,7 +149,10 @@ export async function subscribe<T>(
               { err, topic, correlationId },
               "Error during event handling"
             );
-            await sendToDeadLetter(topic, envelope ?? { metadata: { correlationId, traceNumber: "", eventType: "unknown", eventVersion: "1", timestamp: new Date().toISOString() }, payload: {} });
+            await sendToDeadLetter(
+              topic,
+              envelope ?? buildFallbackEnvelope(correlationId)
+            );
           } finally {
             const currentSpan = trace.getSpan(ctx);
             currentSpan?.end();
@@ -165,6 +171,21 @@ function parseEnvelope<T>(message: Message): EventEnvelope<T> | null {
     logger.warn({ err }, "Failed to parse message");
     return null;
   }
+}
+
+function buildFallbackEnvelope(
+  correlationId: string
+): EventEnvelope<unknown> {
+  return {
+    metadata: {
+      correlationId,
+      traceNumber: "",
+      eventType: "unknown",
+      eventVersion: "1",
+      timestamp: new Date().toISOString(),
+    },
+    payload: {},
+  };
 }
 
 export { KafkaTopics };

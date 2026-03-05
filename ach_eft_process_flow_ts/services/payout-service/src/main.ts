@@ -9,7 +9,7 @@ async function bootstrap() {
   app.use(correlationIdMiddleware, requestLoggingMiddleware);
   const logger = createLogger(serviceName);
   app.useLogger(logger as any);
-  const port = process.env.PORT || 3006;
+  const port = process.env.PORT || 3000;
   await app.listen(port);
   logger.info({ port }, 'Service listening');
 }
