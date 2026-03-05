@@ -1,0 +1,254 @@
+version: "3.8"
+
+x-service-base: &service-base
+  env_file: .env
+  depends_on:
+    - kafka
+  networks:
+    - backend
+
+x-postgres-base: &postgres-base
+  image: postgres:15
+  environment:
+    POSTGRES_PASSWORD: password
+  networks:
+    - backend
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - backend
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - backend
+
+  ach-ingestion-db:
+    <<: *postgres-base
+    container_name: ach-ingestion-db
+    environment:
+      POSTGRES_DB: ach_ingestion
+      POSTGRES_USER: ach_ingestion
+
+  remittance-ingestion-db:
+    <<: *postgres-base
+    container_name: remittance-ingestion-db
+    environment:
+      POSTGRES_DB: remittance_ingestion
+      POSTGRES_USER: remittance_ingestion
+
+  pairing-db:
+    <<: *postgres-base
+    container_name: pairing-db
+    environment:
+      POSTGRES_DB: pairing
+      POSTGRES_USER: pairing
+
+  ledger-db:
+    <<: *postgres-base
+    container_name: ledger-db
+    environment:
+      POSTGRES_DB: ledger
+      POSTGRES_USER: ledger
+
+  provider-ledger-db:
+    <<: *postgres-base
+    container_name: provider-ledger-db
+    environment:
+      POSTGRES_DB: provider_ledger
+      POSTGRES_USER: provider_ledger
+
+  payout-db:
+    <<: *postgres-base
+    container_name: payout-db
+    environment:
+      POSTGRES_DB: payout
+      POSTGRES_USER: payout
+
+  batch-builder-db:
+    <<: *postgres-base
+    container_name: batch-builder-db
+    environment:
+      POSTGRES_DB: batch_builder
+      POSTGRES_USER: batch_builder
+
+  reconciliation-db:
+    <<: *postgres-base
+    container_name: reconciliation-db
+    environment:
+      POSTGRES_DB: reconciliation
+      POSTGRES_USER: reconciliation
+
+  bank-statement-db:
+    <<: *postgres-base
+    container_name: bank-statement-db
+    environment:
+      POSTGRES_DB: bank_statement
+      POSTGRES_USER: bank_statement
+
+  claim-adapter-db:
+    <<: *postgres-base
+    container_name: claim-adapter-db
+    environment:
+      POSTGRES_DB: claim_adapter
+      POSTGRES_USER: claim_adapter
+
+  ach-ingestion-service:
+    <<: *service-base
+    build:
+      context: .
+      dockerfile: services/ach-ingestion-service/Dockerfile
+    depends_on:
+      - ach-ingestion-db
+    environment:
+      PORT: 3001
+      DATABASE_URL: ${ACH_INGESTION_DB_URL}
+      INTERNAL_API_KEY: ${ACH_INGESTION_API_KEY}
+    ports:
+      - "3001:3001"
+
+  remittance-ingestion-service:
+    <<: *service-base
+    build:
+      context: .
+      dockerfile: services/remittance-ingestion-service/Dockerfile
+    depends_on:
+      - remittance-ingestion-db
+    environment:
+      PORT: 3002
+      DATABASE_URL: ${REMITTANCE_INGESTION_DB_URL}
+      INTERNAL_API_KEY: ${REMITTANCE_INGESTION_API_KEY}
+    ports:
+      - "3002:3002"
+
+  pairing-service:
+    <<: *service-base
+    build:
+      context: .
+      dockerfile: services/pairing-service/Dockerfile
+    depends_on:
+      - pairing-db
+    environment:
+      PORT: 3003
+      DATABASE_URL: ${PAIRING_DB_URL}
+      INTERNAL_API_KEY: ${PAIRING_API_KEY}
+    ports:
+      - "3003:3003"
+
+  ledger-service:
+    <<: *service-base
+    build:
+      context: .
+      dockerfile: services/ledger-service/Dockerfile
+    depends_on:
+      - ledger-db
+    environment:
+      PORT: 3004
+      DATABASE_URL: ${LEDGER_DB_URL}
+      INTERNAL_API_KEY: ${LEDGER_API_KEY}
+    ports:
+      - "3004:3004"
+
+  provider-ledger-service:
+    <<: *service-base
+    build:
+      context: .
+      dockerfile: services/provider-ledger-service/Dockerfile
+    depends_on:
+      - provider-ledger-db
+    environment:
+      PORT: 3005
+      DATABASE_URL: ${PROVIDER_LEDGER_DB_URL}
+      INTERNAL_API_KEY: ${PROVIDER_LEDGER_API_KEY}
+    ports:
+      - "3005:3005"
+
+  payout-service:
+    <<: *service-base
+    build:
+      context: .
+      dockerfile: services/payout-service/Dockerfile
+    depends_on:
+      - payout-db
+    environment:
+      PORT: 3006
+      DATABASE_URL: ${PAYOUT_DB_URL}
+      INTERNAL_API_KEY: ${PAYOUT_API_KEY}
+    ports:
+      - "3006:3006"
+
+  batch-builder-service:
+    <<: *service-base
+    build:
+      context: .
+      dockerfile: services/batch-builder-service/Dockerfile
+    depends_on:
+      - batch-builder-db
+    environment:
+      PORT: 3007
+      DATABASE_URL: ${BATCH_BUILDER_DB_URL}
+      INTERNAL_API_KEY: ${BATCH_BUILDER_API_KEY}
+    ports:
+      - "3007:3007"
+
+  reconciliation-service:
+    <<: *service-base
+    build:
+      context: .
+      dockerfile: services/reconciliation-service/Dockerfile
+    depends_on:
+      - reconciliation-db
+    environment:
+      PORT: 3008
+      DATABASE_URL: ${RECONCILIATION_DB_URL}
+      INTERNAL_API_KEY: ${RECONCILIATION_API_KEY}
+    ports:
+      - "3008:3008"
+
+  bank-statement-service:
+    <<: *service-base
+    build:
+      context: .
+      dockerfile: services/bank-statement-service/Dockerfile
+    depends_on:
+      - bank-statement-db
+    environment:
+      PORT: 3009
+      DATABASE_URL: ${BANK_STATEMENT_DB_URL}
+      INTERNAL_API_KEY: ${BANK_STATEMENT_API_KEY}
+    ports:
+      - "3009:3009"
+
+  claim-system-adapter:
+    <<: *service-base
+    build:
+      context: .
+      dockerfile: services/claim-system-adapter/Dockerfile
+    depends_on:
+      - claim-adapter-db
+    environment:
+      PORT: 3010
+      DATABASE_URL: ${CLAIM_ADAPTER_DB_URL}
+      INTERNAL_API_KEY: ${CLAIM_ADAPTER_API_KEY}
+    ports:
+      - "3010:3010"
+
+networks:
+  backend:
+    driver: bridge

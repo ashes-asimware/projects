@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "rootDir": ".",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@shared/events": [
+        "shared/events/src"
+      ],
+      "@shared/kafka": [
+        "shared/kafka/src"
+      ],
+      "@shared/observability": [
+        "shared/observability/src"
+      ]
+    }
+  },
+  "include": [
+    "shared/**/*",
+    "services/**/*"
+  ]
+}

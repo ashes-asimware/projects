@@ -1,0 +1,14 @@
+{
+  "name": "@shared/events",
+  "version": "1.0.0",
+  "description": "Versioned event contracts for ACH/EFT processing",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.22.4"
+  }
+}

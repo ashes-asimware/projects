@@ -1,0 +1,20 @@
+{
+  "name": "@shared/observability",
+  "version": "1.0.0",
+  "description": "Logging, tracing, and correlation utilities",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.8.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.48.0",
+    "@opentelemetry/resources": "^1.18.0",
+    "@opentelemetry/sdk-trace-base": "^1.18.0",
+    "@opentelemetry/sdk-trace-node": "^1.18.0",
+    "@opentelemetry/semantic-conventions": "^1.18.0",
+    "pino": "^8.19.0"
+  }
+}
