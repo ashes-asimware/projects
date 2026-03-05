@@ -1,0 +1,131 @@
+Task 1 – Define core domain models (1. Shared contracts and message schemas)
+Generate strongly-typed models for:
+Carrier (carrierId, carrierName, address, dotId, mcRegId, afmlClearanceId)
+Load (loadId, descriptionOfGoods, truckType, totalWeight, additionalInfo)
+Invoice (invoiceId, lineItems[], totalAmountBilled, currency)
+DocumentMetadata (type, blobUri, originalFileName, mimeType)
+
+Task 2 – Define Kafka message contracts
+Generate message contracts for:
+EnrichedPayloadSent
+EnrichedPayloadReceived
+BillingInvoicePrepared
+FuelAdvanceRequested
+CarrierPaymentIssued
+FuelCardDispatched
+Orchestrator control events (CancelInvoice, ReverseFuelAdvance, MarkSagaFailed)
+Include correlation fields: sagaId, loadId, carrierId, timestamps, and a generic metadata bag.
+
+Task 3 – Kafka client setup (2. Infrastructure and plumbing)
+Create a reusable Kafka producer/consumer wrapper with:
+Configurable topics, groupId, and serializers
+Idempotent producer configuration
+Consumer with manual commit and retry hooks
+
+Task 4 – Azure Blob and DB abstractions
+Implement:
+BlobStorageClient abstraction (upload, getUri) with container per document type
+Repository interfaces for EnrichmentDB, CalcDB, InvoicingDB, AdvanceDB, OrchestratorDB, LedgerDB
+
+Task 5 – HTTP-triggered Azure Function (3. Azure Function (Intake))
+Implement an HTTP-triggered Azure Function:
+Accepts JSON payload from third party (links + extracted fields)
+Downloads documents from public URLs
+Builds EnrichedPayloadSent message (including encoded docs or temp URIs)
+Publishes to Kafka topic EnrichedPayloadSent
+Returns 202 Accepted
+
+Task 6 – Enrichment consumer (4. Enrichment Service)
+Implement a background service:
+Consumes EnrichedPayloadSent
+Extracts documents and metadata
+Uploads docs to Azure Blob Storage
+Persists carrier/load/invoice + blob URIs in EnrichmentDB
+Produces EnrichedPayloadReceived with invoicing fields + blob URIs
+Add local retry with backoff and a DLQ topic for unrecoverable failures.
+
+
+Task 7 – Calculation pipeline (5. Calculation Service)
+Implement a service:
+Consumes EnrichedPayloadReceived
+Persists calculation input in CalcDB
+Calls a decoupled calculation module to:
+Compute amount to claim from shipper
+Compute factoring fees
+Determine if fuel advance is requested and its amount
+Produces BillingInvoicePrepared
+If fuel advance requested, also produces FuelAdvanceRequested
+Make calculation module pure and unit-testable.
+
+Task 8 – Invoicing consumer and ACH integration (6. Invoicing Service (ACH))
+Implement a service:
+Consumes BillingInvoicePrepared
+Persists invoice in InvoicingDB
+Calls an ACHProcessingClient abstraction (stub for now)
+On success:
+Updates Ledger via LedgerServiceClient
+Produces CarrierPaymentIssued
+On permanent failure:
+Marks invoice failed
+Produces CancelInvoice or MarkSagaFailed to Orchestrator control topic
+Include retry policies for ACH and Kafka publishing.
+
+Task 9 – Advance consumer and EFT integration (7. Advance Service (Fuel EFT))
+Implement a service:
+Consumes FuelAdvanceRequested
+Persists advance request in AdvanceDB
+Calls an EFTProcessingClient abstraction (stub for now)
+On success:
+Updates Ledger via LedgerServiceClient
+Produces FuelCardDispatched
+On permanent failure:
+Marks advance failed
+Produces ReverseFuelAdvance or MarkSagaFailed to Orchestrator control topic
+
+Task 10 – Saga state model and persistence (8. Orchestrator Service and Saga state machine)
+Implement a SagaInstance entity with:
+sagaId, loadId, state enum
+hasFuelAdvance, achCompleted, fuelAdvanceCompleted
+failureReason, createdAt, updatedAt, lastEventId, lastEventType
+Implement OrchestratorDB repository for CRUD and optimistic concurrency.
+
+Task 11 – Orchestrator event handlers
+Implement handlers that:
+Consume EnrichedPayloadSent, EnrichedPayloadReceived, BillingInvoicePrepared, FuelAdvanceRequested, CarrierPaymentIssued, FuelCardDispatched, and control events.
+Apply the saga state machine transitions:
+NEW → INTAKE_RECEIVED
+INTAKE_RECEIVED → ENRICHED_STORED
+ENRICHED_STORED → BILLING_INVOICE_PREPARED
+BILLING_INVOICE_PREPARED → FUEL_ADVANCE_REQUESTED / ACH_COMPLETED
+FUEL_ADVANCE_REQUESTED → ACH_COMPLETED / FUEL_ADVANCE_COMPLETED
+ACH_COMPLETED + FUEL_ADVANCE_COMPLETED → COMPLETED
+Any failure → FAILED
+Ensure idempotency using lastEventId.
+
+Task 12 – Orchestrator timers and timeouts
+Implement timeout logic:
+Schedule or poll for sagas stuck in intermediate states beyond SLA
+On timeout, mark saga FAILED with reason and optionally emit MarkSagaFailed
+
+Task 13 – Cross-cutting concerns (9. Observability, retries, and DLQs)
+Add:
+Structured logging with correlationId/sagaId/loadId
+Metrics for each topic (consumed, produced, failures, retries)
+Centralized retry policy (e.g., exponential backoff) for external calls and Kafka
+DLQ topics per service for poison messages
+
+Task 14 – Unit and integration tests (10. Tests and local workflows)
+Generate tests for:
+Calculation module (pure functions)
+Orchestrator state transitions (given event → expected state)
+Enrichment service (blob + DB + message)
+Invoicing and Advance services (happy path + failure path with control events)
+
+Task 15 – Local end-to-end scenario
+Create a local script or test that:
+Sends a sample intake JSON to the Azure Function
+Verifies that:
+Documents land in Blob
+DBs have expected records
+Kafka topics see the full chain of messages
+Orchestrator saga ends in COMPLETED
