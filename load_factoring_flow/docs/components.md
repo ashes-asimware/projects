@@ -1,7 +1,7 @@
 | Core components |
 | --- |
 | Email Ingestion System (3rd party) – extracts docs + fields, sends JSON to you |
-| Intake Function – Azure Function receiving JSON, downloading docs, producing Kafka |
+| Intake Function – Azure Function receiving JSON, validates payload, producing Kafka |
 | Enrichment Consumer Service – persists docs + fields, produces calculation message |
 | Calculation Service – computes billing + fuel advance, produces billing/advance messages |
 | Invoicing Service – runs ACH flow, publishes carrier payment events |
