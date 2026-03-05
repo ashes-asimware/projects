@@ -1,0 +1,24 @@
+{
+  "name": "ach-eft-process-flow-ts",
+  "version": "1.0.0",
+  "description": "Event-driven ACH/EFT financial processing monorepo",
+  "private": true,
+  "type": "commonjs",
+  "workspaces": [
+    "shared/*",
+    "services/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build --if-present",
+    "dev": "npm run -ws dev --if-present",
+    "start": "npm run -ws start --if-present",
+    "migrate": "npm run -ws migrate --if-present",
+    "lint": "npm run -ws lint --if-present",
+    "test": "npm run -ws test --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
