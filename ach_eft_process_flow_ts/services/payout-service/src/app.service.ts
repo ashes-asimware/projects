@@ -4,9 +4,9 @@ import { KafkaTopics, validateEvent } from '@shared/events';
 import { publish, subscribe } from '@shared/kafka';
 import { createLogger } from '@shared/observability';
 
-const PAYOUT_SENT_EVENT = 'ProviderPayoutSentV1';
-const ACH_RETURN_EVENT = 'ACHReturnReceivedV1';
-const NOC_EVENT = 'NOCReceivedV1';
+const PUBLISH_EVENT_TYPE = 'ProviderPayoutSentV1';
+const ACH_RETURN_EVENT_TYPE = 'ACHReturnReceivedV1';
+const NOC_EVENT_TYPE = 'NOCReceivedV1';
 
 @Injectable()
 export class AppService implements OnModuleInit {
@@ -19,23 +19,23 @@ export class AppService implements OnModuleInit {
   }
 
   async publishPayout(body: any) {
-    const payload = this.buildPayload(PAYOUT_SENT_EVENT, body);
-    validateEvent(PAYOUT_SENT_EVENT, payload);
-    await publish(KafkaTopics.payoutSent, payload, PAYOUT_SENT_EVENT);
+    const payload = this.buildPayload(PUBLISH_EVENT_TYPE, body);
+    validateEvent(PUBLISH_EVENT_TYPE, payload);
+    await publish(KafkaTopics.payoutSent, payload, PUBLISH_EVENT_TYPE);
     return { correlationId: payload.correlationId, eventType: payload.eventType };
   }
 
   async publishAchReturn(body: any) {
-    const payload = this.buildPayload(ACH_RETURN_EVENT, body);
-    validateEvent(ACH_RETURN_EVENT, payload);
-    await publish(KafkaTopics.achReturn, payload, ACH_RETURN_EVENT);
+    const payload = this.buildPayload(ACH_RETURN_EVENT_TYPE, body);
+    validateEvent(ACH_RETURN_EVENT_TYPE, payload);
+    await publish(KafkaTopics.achReturn, payload, ACH_RETURN_EVENT_TYPE);
     return { correlationId: payload.correlationId, eventType: payload.eventType };
   }
 
   async publishNoc(body: any) {
-    const payload = this.buildPayload(NOC_EVENT, body);
-    validateEvent(NOC_EVENT, payload);
-    await publish(KafkaTopics.nocReceived, payload, NOC_EVENT);
+    const payload = this.buildPayload(NOC_EVENT_TYPE, body);
+    validateEvent(NOC_EVENT_TYPE, payload);
+    await publish(KafkaTopics.nocReceived, payload, NOC_EVENT_TYPE);
     return { correlationId: payload.correlationId, eventType: payload.eventType };
   }
 

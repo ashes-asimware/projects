@@ -4,7 +4,7 @@ import { KafkaTopics, validateEvent } from '@shared/events';
 import { publish, subscribe } from '@shared/kafka';
 import { createLogger } from '@shared/observability';
 
-// Placeholder event representing outbound batches that have been built and sent.
+// Emits ProviderPayoutSentV1 once payout batches are constructed and dispatched.
 const PUBLISH_EVENT_TYPE = 'ProviderPayoutSentV1';
 const PUBLISH_TOPIC = KafkaTopics.payoutSent;
 const CONSUME_TOPICS = [KafkaTopics.payoutInitiated];
