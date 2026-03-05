@@ -17,7 +17,7 @@ class KafkaTestHarness {
     this.subscribers.set(topic, handlers);
   }
 
-  async publish(topic: string, payload: any) {
+  async publish(topic: string, payload: unknown) {
     this.observed.push({ topic, payload });
     const handlers = this.subscribers.get(topic) || [];
     for (const handler of handlers) {
@@ -36,7 +36,7 @@ class MockBankAdapter {
     );
   }
 
-  private async handlePayout(payload: any) {
+  private async handlePayout(payload: unknown) {
     await this.bus.publish(KafkaTopics.payoutSent, {
       ...asObject(payload),
       eventType: "ProviderPayoutSentV1",

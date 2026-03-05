@@ -19,6 +19,19 @@ import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions"
 import { diag, DiagConsoleLogger, DiagLogLevel, trace } from "@opentelemetry/api";
 
 const asyncLocalStorage = new AsyncLocalStorage<{ correlationId: string }>();
+const normalizeError = (value: unknown): Error =>
+  value instanceof Error ? value : new Error(String(value));
+const resolveStatus = (value: unknown): number => {
+  if (value instanceof HttpException) {
+    return value.getStatus();
+  }
+  const candidate = value as { status?: number; statusCode?: number } | undefined;
+  return (
+    candidate?.status ??
+    candidate?.statusCode ??
+    HttpStatus.INTERNAL_SERVER_ERROR
+  );
+};
 
 export const getCorrelationId = () =>
   asyncLocalStorage.getStore()?.correlationId;
@@ -86,17 +99,12 @@ export const errorHandlingMiddleware = (
   res: Response,
   next: NextFunction
 ) => {
-  const error = err instanceof Error ? err : new Error(String(err));
+  const error = normalizeError(err);
   errorLogger.error(error, "Unhandled error");
   if (res.headersSent) {
     return next(error);
   }
-  const status =
-    err instanceof HttpException
-      ? err.getStatus()
-      : (err as { status?: number; statusCode?: number })?.status ||
-        (err as { status?: number; statusCode?: number })?.statusCode ||
-        500;
+  const status = resolveStatus(err);
   res.status(status).json({
     message: error?.message || "Internal server error",
     correlationId: getCorrelationId(),
@@ -108,12 +116,9 @@ export class GlobalErrorFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = resolveStatus(exception);
 
-    const error = exception instanceof Error ? exception : new Error(String(exception));
+    const error = normalizeError(exception);
     errorLogger.error(error, "Unhandled error");
     response.status(status).json({
       message:
