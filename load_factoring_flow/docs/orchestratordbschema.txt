@@ -1,0 +1,24 @@
+SagaInstance {
+  sagaId: UUID
+  loadId: string
+  state: enum(
+    NEW,
+    INTAKE_RECEIVED,
+    ENRICHED_STORED,
+    CALCULATION_DONE,
+    BILLING_INVOICE_PREPARED,
+    FUEL_ADVANCE_REQUESTED,
+    ACH_COMPLETED,
+    FUEL_ADVANCE_COMPLETED,
+    COMPLETED,
+    FAILED
+  )
+  hasFuelAdvance: boolean
+  achCompleted: boolean
+  fuelAdvanceCompleted: boolean
+  failureReason: string?   // timeout, external error, etc.
+  createdAt: timestamp
+  updatedAt: timestamp
+  lastEventType: string
+  lastEventId: string
+}
