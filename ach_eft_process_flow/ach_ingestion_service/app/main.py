@@ -92,7 +92,7 @@ def _extract_settlement_payload(
         file_bytes = settlement_file.file.read()
         try:
             return file_bytes.decode("utf-8")
-        except Exception:
+        except UnicodeDecodeError:
             return file_bytes.decode("utf-8", errors="ignore")
     raise HTTPException(
         status_code=422,

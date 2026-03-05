@@ -6,7 +6,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from shared.events.topics import BANK_STATEMENT_TOPIC, EFT_RECEIVED_TOPIC, PAYOUT_SENT_TOPIC, RECONCILIATION_TOPIC
+from shared.events.topics import (
+    BANK_STATEMENT_TOPIC,
+    EFT_MATCHED_TOPIC,
+    EFT_RECEIVED_TOPIC,
+    PAYOUT_SENT_TOPIC,
+    RECONCILIATION_TOPIC,
+)
 
 _TEST_DATABASE_URL = "sqlite:///:memory:"
 
@@ -99,6 +105,34 @@ class ReconciliationServiceTests(unittest.IsolatedAsyncioTestCase):
         payload = json.loads(kwargs["message"])
         self.assertEqual(payload["correlation_id"], "corr-2")
         self.assertIn("amount", payload.get("reason", ""))
+
+    async def test_eft_matched_and_payout_sent_reconcile(self) -> None:
+        from reconciliation_service.app.main import _handle_queue_message
+
+        eft_matched = {
+            "correlation_id": "corr-3",
+            "trace_number": "trace-3",
+            "payer_id": "payer-c",
+            "provider_id": "prov-c",
+            "claims": [{"claim_id": "eft", "amount_cents": 4200}],
+        }
+        payout_sent = {
+            "correlation_id": "corr-3",
+            "trace_number": "trace-3",
+            "payer_id": "payer-c",
+            "provider_id": "prov-c",
+            "claims": [{"claim_id": "payout", "amount_cents": 4200}],
+            "direction": "DEBIT",
+        }
+
+        with patch("reconciliation_service.app.main.publisher.send", return_value=True) as send_mock:
+            await _handle_queue_message(EFT_MATCHED_TOPIC, json.dumps(eft_matched))
+            result = await _handle_queue_message(PAYOUT_SENT_TOPIC, json.dumps(payout_sent))
+
+        self.assertIsNotNone(result)
+        payload = json.loads(send_mock.call_args.kwargs["message"])
+        self.assertEqual(payload["correlation_id"], "corr-3")
+        self.assertEqual(send_mock.call_args.kwargs["queue_name"], RECONCILIATION_TOPIC)
 
 
 if __name__ == "__main__":
