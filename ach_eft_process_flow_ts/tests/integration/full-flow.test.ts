@@ -65,8 +65,8 @@ class MockClaimSystem {
 describe("ACH to payout happy-path integration", () => {
   it("simulates full event flow across services", async () => {
     const bus = new KafkaTestHarness();
-    const bankAdapter = new MockBankAdapter(bus);
-    const claimSystem = new MockClaimSystem(bus);
+    const mockBankAdapter = new MockBankAdapter(bus);
+    const mockClaimSystem = new MockClaimSystem(bus);
 
     const baseEvent = {
       eventVersion: "1",
@@ -128,10 +128,7 @@ describe("ACH to payout happy-path integration", () => {
       eventType: "RemittanceReceivedV1",
     });
 
-    assert.ok(
-      claimSystem.receivedClaims.length > 0,
-      "Claim system received posted claim"
-    );
+    assert.ok(mockClaimSystem.receivedClaims.length > 0, "Claim system received posted claim");
 
     const topicsInOrder = bus.observed.map((e) => e.topic);
     assert.deepStrictEqual(topicsInOrder, [

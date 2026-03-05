@@ -106,7 +106,7 @@ export const errorHandlingMiddleware = (
   }
   const status = resolveStatus(err);
   res.status(status).json({
-    message: error.message || "Internal server error",
+    message: error.message || "Unhandled error",
     correlationId: getCorrelationId(),
   });
 };
@@ -124,7 +124,7 @@ export class GlobalErrorFilter implements ExceptionFilter {
       message:
         exception instanceof HttpException
           ? exception.message
-          : "Internal server error",
+          : "Unhandled error",
       correlationId: getCorrelationId(),
     });
   }
