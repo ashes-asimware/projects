@@ -29,7 +29,15 @@ class EFTReceived(InterServiceEvent):
     pass
 
 
+class EFTReceivedV1(EFTReceived):
+    pass
+
+
 class RemittanceReceived(InterServiceEvent):
+    pass
+
+
+class RemittanceReceivedV1(RemittanceReceived):
     pass
 
 
@@ -37,7 +45,15 @@ class EFTMatchedToRemittance(InterServiceEvent):
     pass
 
 
+class EFTMatchedToRemittanceV1(EFTMatchedToRemittance):
+    pass
+
+
 class ProviderPayoutInitiated(InterServiceEvent):
+    pass
+
+
+class ProviderPayoutInitiatedV1(ProviderPayoutInitiated):
     pass
 
 
@@ -45,7 +61,15 @@ class ProviderPayoutSent(InterServiceEvent):
     pass
 
 
+class ProviderPayoutSentV1(ProviderPayoutSent):
+    pass
+
+
 class BankStatementReceived(InterServiceEvent):
+    pass
+
+
+class BankStatementReceivedV1(BankStatementReceived):
     pass
 
 
@@ -53,7 +77,15 @@ class ReconciliationCompleted(InterServiceEvent):
     pass
 
 
+class ReconciliationCompletedV1(ReconciliationCompleted):
+    pass
+
+
 class ClaimPaymentPosted(InterServiceEvent):
+    pass
+
+
+class ClaimPaymentPostedV1(ClaimPaymentPosted):
     pass
 
 
@@ -61,9 +93,21 @@ class ACHReturnReceived(InterServiceEvent):
     pass
 
 
+class ACHReturnReceivedV1(ACHReturnReceived):
+    pass
+
+
 class NOCReceived(InterServiceEvent):
+    pass
+
+
+class NOCReceivedV1(NOCReceived):
     pass
 
 
 class RemittanceException(InterServiceEvent):
     reason: str | None = None
+
+
+class RemittanceExceptionV1(RemittanceException):
+    pass

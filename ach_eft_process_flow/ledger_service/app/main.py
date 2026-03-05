@@ -8,6 +8,12 @@ from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
 from shared.middleware import apply_common_middleware
+from shared.events.topics import (
+    ACH_RETURN_TOPIC,
+    EFT_MATCHED_TOPIC,
+    EFT_RECEIVED_TOPIC,
+    PAYOUT_SENT_TOPIC,
+)
 from .db import Base, SessionLocal, engine
 from .models import JournalEntry, JournalLine
 from .schemas import JournalEntryResponse, PostEntryRequest
@@ -16,29 +22,26 @@ logger = logging.getLogger(__name__)
 
 # Queues this service subscribes to
 SUBSCRIBED_QUEUES = [
-    "eft_received_queue",
-    "eft_matched_queue",
-    "provider_payout_sent_queue",
-    "payout_sent_queue",
-    "ach_return_queue",
+    EFT_RECEIVED_TOPIC,
+    EFT_MATCHED_TOPIC,
+    PAYOUT_SENT_TOPIC,
+    ACH_RETURN_TOPIC,
 ]
 
 # Maps each queue to a ledger entry type
 _QUEUE_ENTRY_TYPES: dict[str, str] = {
-    "eft_received_queue": "EFT_RECEIVED",
-    "eft_matched_queue": "EFT_MATCHED",
-    "provider_payout_sent_queue": "PAYOUT_SENT",
-    "payout_sent_queue": "PAYOUT_SENT",
-    "ach_return_queue": "ACH_RETURN",
+    EFT_RECEIVED_TOPIC: "EFT_RECEIVED",
+    EFT_MATCHED_TOPIC: "EFT_MATCHED",
+    PAYOUT_SENT_TOPIC: "PAYOUT_SENT",
+    ACH_RETURN_TOPIC: "ACH_RETURN",
 }
 
 # Maps each queue to (debit_account, credit_account) codes
 _QUEUE_ACCOUNTS: dict[str, tuple[str, str]] = {
-    "eft_received_queue": ("1010-CASH-CLEARING", "2010-EFT-SUSPENSE"),
-    "eft_matched_queue": ("2010-EFT-SUSPENSE", "2020-CLAIMS-PAYABLE"),
-    "provider_payout_sent_queue": ("2020-CLAIMS-PAYABLE", "1010-CASH-CLEARING"),
-    "payout_sent_queue": ("2020-CLAIMS-PAYABLE", "1010-CASH-CLEARING"),
-    "ach_return_queue": ("2010-EFT-SUSPENSE", "2030-ACH-RETURNS"),
+    EFT_RECEIVED_TOPIC: ("1010-CASH-CLEARING", "2010-EFT-SUSPENSE"),
+    EFT_MATCHED_TOPIC: ("2010-EFT-SUSPENSE", "2020-CLAIMS-PAYABLE"),
+    PAYOUT_SENT_TOPIC: ("2020-CLAIMS-PAYABLE", "1010-CASH-CLEARING"),
+    ACH_RETURN_TOPIC: ("2010-EFT-SUSPENSE", "2030-ACH-RETURNS"),
 }
 
 

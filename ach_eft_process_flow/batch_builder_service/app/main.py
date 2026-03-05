@@ -9,7 +9,8 @@ from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
 from shared.middleware import apply_common_middleware
-from shared.events.schemas import ClaimReference, ProviderPayoutInitiated, ProviderPayoutSent
+from shared.events.schemas import ClaimReference, ProviderPayoutInitiatedV1, ProviderPayoutSentV1
+from shared.events.topics import PAYOUT_INITIATED_TOPIC, PAYOUT_SENT_TOPIC
 from shared.servicebus.client import ServiceBusPublisher
 
 from .db import Base, SessionLocal, engine
@@ -18,9 +19,9 @@ from .schemas import BatchBuilderServiceRequest
 
 logger = logging.getLogger(__name__)
 
-SUBSCRIBED_QUEUE = "payout_initiated_queue"
+SUBSCRIBED_QUEUE = PAYOUT_INITIATED_TOPIC
 publisher = ServiceBusPublisher()
-_batch_buffer: dict[str, list[ProviderPayoutInitiated]] = {}
+_batch_buffer: dict[str, list[ProviderPayoutInitiatedV1]] = {}
 
 
 def _batch_size() -> int:
@@ -36,7 +37,7 @@ def _to_claims(amount_cents: int, claims: list[ClaimReference]) -> list[ClaimRef
     return [ClaimReference(claim_id="payout", amount_cents=amount_cents)]
 
 
-def _to_ach_entry(event: ProviderPayoutInitiated) -> dict:
+def _to_ach_entry(event: ProviderPayoutInitiatedV1) -> dict:
     amount_cents = sum(c.amount_cents for c in event.claims) if event.claims else 0
     return {
         "trace_number": event.trace_number,
@@ -51,7 +52,7 @@ def _send_to_mock_bank_adapter(batch_id: str, nacha_payload: dict) -> dict:
     return {"batch_id": batch_id, "status": "accepted", "entries": len(nacha_payload["entries"])}
 
 
-def _persist_batch(db: Session, payer_id: str, batch_id: str, events: list[ProviderPayoutInitiated]) -> None:
+def _persist_batch(db: Session, payer_id: str, batch_id: str, events: list[ProviderPayoutInitiatedV1]) -> None:
     total_cents = sum(sum(c.amount_cents for c in e.claims) for e in events)
     batch = PayoutBatch(
         batch_id=batch_id,
@@ -76,7 +77,7 @@ def _persist_batch(db: Session, payer_id: str, batch_id: str, events: list[Provi
     db.commit()
 
 
-def _flush_batch(payer_id: str, db: Session) -> list[ProviderPayoutSent]:
+def _flush_batch(payer_id: str, db: Session) -> list[ProviderPayoutSentV1]:
     events = _batch_buffer.pop(payer_id, [])
     if not events:
         return []
@@ -86,21 +87,21 @@ def _flush_batch(payer_id: str, db: Session) -> list[ProviderPayoutSent]:
     _persist_batch(db, payer_id, batch_id, events)
     _send_to_mock_bank_adapter(batch_id, nacha_payload)
 
-    sent_events: list[ProviderPayoutSent] = []
+    sent_events: list[ProviderPayoutSentV1] = []
     for evt in events:
-        payout_sent = ProviderPayoutSent(
+        payout_sent = ProviderPayoutSentV1(
             correlation_id=evt.correlation_id,
             trace_number=evt.trace_number,
             payer_id=evt.payer_id,
             provider_id=evt.provider_id,
             claims=evt.claims,
         )
-        publisher.send(queue_name="payout_sent_queue", message=payout_sent.model_dump_json())
+        publisher.send(queue_name=PAYOUT_SENT_TOPIC, message=payout_sent.model_dump_json())
         sent_events.append(payout_sent)
     return sent_events
 
 
-def _enqueue_payout(event: ProviderPayoutInitiated, db: Session) -> list[ProviderPayoutSent]:
+def _enqueue_payout(event: ProviderPayoutInitiatedV1, db: Session) -> list[ProviderPayoutSentV1]:
     buffer = _batch_buffer.setdefault(event.payer_id, [])
     buffer.append(event)
     if len(buffer) >= _batch_size():
@@ -108,11 +109,11 @@ def _enqueue_payout(event: ProviderPayoutInitiated, db: Session) -> list[Provide
     return []
 
 
-def _from_request(payload: BatchBuilderServiceRequest) -> ProviderPayoutInitiated:
+def _from_request(payload: BatchBuilderServiceRequest) -> ProviderPayoutInitiatedV1:
     correlation_id = payload.correlation_id or f"payout-{payload.provider_id}-{uuid.uuid4().hex}"
     trace_number = payload.trace_number or payload.provider_id
     claims = _to_claims(payload.amount_cents, payload.claims)
-    return ProviderPayoutInitiated(
+    return ProviderPayoutInitiatedV1(
         correlation_id=correlation_id,
         trace_number=trace_number,
         payer_id=payload.payer_id,
@@ -121,10 +122,10 @@ def _from_request(payload: BatchBuilderServiceRequest) -> ProviderPayoutInitiate
     )
 
 
-async def _handle_queue_message(body: str) -> list[ProviderPayoutSent]:
+async def _handle_queue_message(body: str) -> list[ProviderPayoutSentV1]:
     data = json.loads(body)
     try:
-        event = ProviderPayoutInitiated.model_validate(data)
+        event = ProviderPayoutInitiatedV1.model_validate(data)
     except Exception:
         event = _from_request(BatchBuilderServiceRequest(**data))
     db = SessionLocal()
@@ -194,13 +195,13 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "batch_builder_service"}
 
 
-@app.post("/process", response_model=list[ProviderPayoutSent])
-def process(payload: BatchBuilderServiceRequest, db: Session = Depends(get_db)) -> list[ProviderPayoutSent]:
+@app.post("/process", response_model=list[ProviderPayoutSentV1])
+def process(payload: BatchBuilderServiceRequest, db: Session = Depends(get_db)) -> list[ProviderPayoutSentV1]:
     event = _from_request(payload)
     sent_events = _enqueue_payout(event, db)
     return sent_events
 
 
-@app.post("/flush/{payer_id}", response_model=list[ProviderPayoutSent])
-def flush_batch(payer_id: str, db: Session = Depends(get_db)) -> list[ProviderPayoutSent]:
+@app.post("/flush/{payer_id}", response_model=list[ProviderPayoutSentV1])
+def flush_batch(payer_id: str, db: Session = Depends(get_db)) -> list[ProviderPayoutSentV1]:
     return _flush_batch(payer_id, db)

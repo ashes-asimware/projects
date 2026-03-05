@@ -8,7 +8,8 @@ from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
 from shared.middleware import apply_common_middleware
-from shared.events.schemas import ClaimReference, EFTMatchedToRemittance
+from shared.events.schemas import ClaimReference, EFTMatchedToRemittanceV1
+from shared.events.topics import EFT_MATCHED_TOPIC, EFT_RECEIVED_TOPIC, REMITTANCE_RECEIVED_TOPIC
 from shared.servicebus.client import ServiceBusPublisher
 
 from .db import Base, SessionLocal, engine
@@ -16,7 +17,7 @@ from .models import EFTReceipt, RemittanceReceipt
 
 logger = logging.getLogger(__name__)
 
-SUBSCRIBED_QUEUES = ("eft_received_queue", "remittance_received_queue")
+SUBSCRIBED_QUEUES = (EFT_RECEIVED_TOPIC, REMITTANCE_RECEIVED_TOPIC)
 
 
 def _total_amount_from_claims(claims: list[dict] | None) -> int:
@@ -25,7 +26,7 @@ def _total_amount_from_claims(claims: list[dict] | None) -> int:
     return sum(int(c.get("amount_cents", 0)) for c in claims)
 
 
-def _attempt_match(db: Session, eft: EFTReceipt | None, remittance: RemittanceReceipt | None) -> EFTMatchedToRemittance | None:
+def _attempt_match(db: Session, eft: EFTReceipt | None, remittance: RemittanceReceipt | None) -> EFTMatchedToRemittanceV1 | None:
     if not eft or not remittance:
         return None
     if eft.matched and remittance.matched:
@@ -37,14 +38,14 @@ def _attempt_match(db: Session, eft: EFTReceipt | None, remittance: RemittanceRe
     db.refresh(eft)
     db.refresh(remittance)
 
-    event = EFTMatchedToRemittance(
+    event = EFTMatchedToRemittanceV1(
         correlation_id=eft.correlation_id or remittance.correlation_id,
         trace_number=eft.trace_number,
         payer_id=eft.payer_id,
         provider_id=eft.provider_id,
         claims=[ClaimReference(**claim) for claim in remittance.claims],
     )
-    publisher.send(queue_name="eft_matched_queue", message=event.model_dump_json())
+    publisher.send(queue_name=EFT_MATCHED_TOPIC, message=event.model_dump_json())
     return event
 
 
@@ -58,7 +59,7 @@ def _get_match_key(data: dict) -> tuple[str, str, str, int]:
     )
 
 
-def _handle_eft_payload(db: Session, data: dict) -> EFTMatchedToRemittance | None:
+def _handle_eft_payload(db: Session, data: dict) -> EFTMatchedToRemittanceV1 | None:
     trace_number, payer_id, provider_id, amount_cents = _get_match_key(data)
     existing = (
         db.query(EFTReceipt)
@@ -86,7 +87,7 @@ def _handle_eft_payload(db: Session, data: dict) -> EFTMatchedToRemittance | Non
     return _attempt_match(db, existing, remittance)
 
 
-def _handle_remittance_payload(db: Session, data: dict) -> EFTMatchedToRemittance | None:
+def _handle_remittance_payload(db: Session, data: dict) -> EFTMatchedToRemittanceV1 | None:
     trace_number, payer_id, provider_id, amount_cents = _get_match_key(data)
     claims = data.get("claims") or []
     existing = (
@@ -115,13 +116,13 @@ def _handle_remittance_payload(db: Session, data: dict) -> EFTMatchedToRemittanc
     return _attempt_match(db, eft, existing)
 
 
-async def _handle_queue_message(queue_name: str, body: str) -> EFTMatchedToRemittance | None:
+async def _handle_queue_message(queue_name: str, body: str) -> EFTMatchedToRemittanceV1 | None:
     data = json.loads(body)
     db = SessionLocal()
     try:
-        if queue_name == "eft_received_queue":
+        if queue_name == EFT_RECEIVED_TOPIC:
             return _handle_eft_payload(db, data)
-        if queue_name == "remittance_received_queue":
+        if queue_name == REMITTANCE_RECEIVED_TOPIC:
             return _handle_remittance_payload(db, data)
     finally:
         db.close()

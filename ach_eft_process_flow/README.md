@@ -3,29 +3,29 @@
 Python monorepo for a multi-service healthcare ACH/EFT processing system. Each service is a FastAPI app with shared middleware for correlation IDs, structured JSON logging, optional API key enforcement, and OpenTelemetry spans.
 
 ## Services and responsibilities
-- **ach_ingestion_service**: Parses ACH settlement files and emits `EFTReceived` events.
-- **remittance_ingestion_service**: Parses 835/X12 remittances and emits `RemittanceReceived`.
-- **pairing_service**: Matches ACH receipts to 835 remittances and emits `EFTMatchedToRemittance`.
+- **ach_ingestion_service**: Parses ACH settlement files and emits `EFTReceivedV1` events.
+- **remittance_ingestion_service**: Parses 835/X12 remittances and emits `RemittanceReceivedV1`.
+- **pairing_service**: Matches ACH receipts to 835 remittances and emits `EFTMatchedToRemittanceV1`.
 - **ledger_service**: Journals events into debit/credit lines.
-- **provider_ledger_service**: Maintains provider balances and emits `provider_balance_updates`.
-- **payout_service**: Triggers payouts when balances exceed a threshold and emits `ProviderPayoutInitiated`.
-- **batch_builder_service**: Batches payouts into NACHA-style payloads and emits `ProviderPayoutSent`.
-- **bank_statement_ingestion_service**: Ingests BAI2 or CAMT.053 statements and emits `BankStatementReceived`.
-- **reconciliation_service**: Compares bank statements to payouts/EFTs and emits `ReconciliationCompleted` or `RemittanceException`.
-- **claim_system_adapter**: Posts paid claims to an external claim system and emits `ClaimPaymentPosted`.
+- **provider_ledger_service**: Maintains provider balances and emits `provider.balance.updated.v1`.
+- **payout_service**: Triggers payouts when balances exceed a threshold and emits `ProviderPayoutInitiatedV1`.
+- **batch_builder_service**: Batches payouts into NACHA-style payloads and emits `ProviderPayoutSentV1`.
+- **bank_statement_ingestion_service**: Ingests BAI2 or CAMT.053 statements and emits `BankStatementReceivedV1`.
+- **reconciliation_service**: Compares bank statements to payouts/EFTs and emits `ReconciliationCompletedV1` or `RemittanceExceptionV1`.
+- **claim_system_adapter**: Posts paid claims to an external claim system and consumes `ClaimPaymentPostedV1`.
 
 ## Event flows (happy path)
-1. **ACH ingestion** → publishes `EFTReceived` (`topic: eft-received`, queue consumer: `eft_received_queue`).
-2. **Ledger** records EFT receipt from `eft_received_queue`.
-3. **835 ingestion** → publishes `RemittanceReceived` (`queue: remittance_received_queue`).
-4. **Pairing** consumes `eft_received_queue` + `remittance_received_queue` → emits `eft_matched_queue`.
-5. **Provider ledger** consumes `eft_matched_queue` → emits `provider_balance_updates_queue`.
-6. **Payout** consumes `provider_balance_updates_queue` → emits `payout_initiated_queue`.
-7. **Batch builder** consumes `payout_initiated_queue` → emits `payout_sent_queue`.
-8. **Ledger** consumes `payout_sent_queue`.
-9. **Bank statements** → `bank_statement_queue`.
-10. **Reconciliation** consumes `bank_statement_queue` + `payout_sent_queue` (+ `eft_received_queue`) → emits `reconciliation_queue`.
-11. **Claim posting** consumes `claim_payment_queue` → emits `claim_payment_posted_queue`.
+1. **ACH ingestion** → publishes `EFTReceivedV1` (`topic: eft.received.v1`).
+2. **Ledger** records EFT receipt from `eft.received.v1`.
+3. **835 ingestion** → publishes `RemittanceReceivedV1` (`topic: remittance.received.v1`).
+4. **Pairing** consumes `eft.received.v1` + `remittance.received.v1` → emits `EFTMatchedToRemittanceV1` on `eft.matched.v1`.
+5. **Provider ledger** consumes `eft.matched.v1` → emits `provider.balance.updated.v1`.
+6. **Payout** consumes `provider.balance.updated.v1` → emits `ProviderPayoutInitiatedV1` on `payout.initiated.v1`.
+7. **Batch builder** consumes `payout.initiated.v1` → emits `ProviderPayoutSentV1` on `payout.sent.v1`.
+8. **Ledger** consumes `payout.sent.v1`.
+9. **Bank statements** → `bank.statement.v1`.
+10. **Reconciliation** consumes `bank.statement.v1` + `payout.sent.v1` + `eft.received.v1` + `eft.matched.v1` + `remittance.received.v1` → emits `reconciliation.completed.v1`.
+11. **Claim posting** consumes `claim.payment.posted.v1` to notify external claim system.
 
 Queue/topic names are defined in code; see each service’s `SUBSCRIBED_QUEUE`/publisher calls.
 
@@ -74,7 +74,7 @@ Each service listens on a unique host port (8010–8019). The Service Bus emulat
 
 ## Event schemas
 Key payloads are defined in `shared/events/schemas.py`:
-- `EFTReceived`, `RemittanceReceived`, `EFTMatchedToRemittance`
-- `ProviderPayoutInitiated`, `ProviderPayoutSent`
-- `BankStatementReceived`, `ReconciliationCompleted`, `RemittanceException`
-- `ClaimPaymentPosted`
+- `EFTReceivedV1`, `RemittanceReceivedV1`, `EFTMatchedToRemittanceV1`
+- `ProviderPayoutInitiatedV1`, `ProviderPayoutSentV1`
+- `BankStatementReceivedV1`, `ReconciliationCompletedV1`, `RemittanceExceptionV1`
+- `ClaimPaymentPostedV1`

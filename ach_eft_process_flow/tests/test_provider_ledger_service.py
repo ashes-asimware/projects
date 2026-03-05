@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from shared.events.topics import PROVIDER_BALANCE_UPDATED_TOPIC
 _TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
@@ -79,7 +80,7 @@ class ProviderLedgerServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(balance.balance_cents, 10000)
         send_mock.assert_called_once()
         _, kwargs = send_mock.call_args
-        self.assertEqual(kwargs["queue_name"], "provider_balance_updates_queue")
+        self.assertEqual(kwargs["queue_name"], PROVIDER_BALANCE_UPDATED_TOPIC)
         payload = json.loads(kwargs["message"])
         self.assertEqual(payload["provider_id"], "provider-abc")
 

@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from shared.events.topics import PAYOUT_INITIATED_TOPIC
 _TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
@@ -72,7 +73,7 @@ class PayoutServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(event.provider_id, "prov-123")
         send_mock.assert_called_once()
         _, kwargs = send_mock.call_args
-        self.assertEqual(kwargs["queue_name"], "payout_initiated_queue")
+        self.assertEqual(kwargs["queue_name"], PAYOUT_INITIATED_TOPIC)
         self.assertEqual(_payout_threshold_cents(), 5000)
 
         db = self.SessionLocal()

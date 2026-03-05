@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from shared.events.topics import ACH_RETURN_TOPIC, EFT_MATCHED_TOPIC, EFT_RECEIVED_TOPIC, PAYOUT_SENT_TOPIC
 # Use an in-memory SQLite database with StaticPool so all sessions share the same connection
 _TEST_DATABASE_URL = "sqlite:///:memory:"
 
@@ -172,14 +173,14 @@ class LedgerServiceQueueHandlerTests(unittest.IsolatedAsyncioTestCase):
             "provider_id": "provider-1",
             "claims": [{"claim_id": "c1", "amount_cents": 3000}],
         }
-        await _handle_queue_message("eft_received_queue", json.dumps(event))
+        await _handle_queue_message(EFT_RECEIVED_TOPIC, json.dumps(event))
 
         db = self.SessionLocal()
         try:
             entry = db.query(JournalEntry).filter_by(correlation_id="corr-eft").first()
             self.assertIsNotNone(entry)
             self.assertEqual(entry.entry_type, "EFT_RECEIVED")
-            self.assertEqual(entry.source_queue, "eft_received_queue")
+            self.assertEqual(entry.source_queue, EFT_RECEIVED_TOPIC)
             lines = db.query(JournalLine).filter_by(journal_entry_id=entry.id).all()
             self.assertEqual(len(lines), 2)
             debit = next(l for l in lines if l.line_type == "DEBIT")
@@ -202,7 +203,7 @@ class LedgerServiceQueueHandlerTests(unittest.IsolatedAsyncioTestCase):
             "provider_id": "pr2",
             "claims": [{"claim_id": "c2", "amount_cents": 8000}],
         }
-        await _handle_queue_message("eft_matched_queue", json.dumps(event))
+        await _handle_queue_message(EFT_MATCHED_TOPIC, json.dumps(event))
 
         db = self.SessionLocal()
         try:
@@ -227,7 +228,7 @@ class LedgerServiceQueueHandlerTests(unittest.IsolatedAsyncioTestCase):
             "provider_id": "pr3",
             "claims": [{"claim_id": "c3", "amount_cents": 4500}],
         }
-        await _handle_queue_message("provider_payout_sent_queue", json.dumps(event))
+        await _handle_queue_message(PAYOUT_SENT_TOPIC, json.dumps(event))
 
         db = self.SessionLocal()
         try:
@@ -252,7 +253,7 @@ class LedgerServiceQueueHandlerTests(unittest.IsolatedAsyncioTestCase):
             "provider_id": "pr4",
             "claims": [{"claim_id": "c4", "amount_cents": 2000}],
         }
-        await _handle_queue_message("ach_return_queue", json.dumps(event))
+        await _handle_queue_message(ACH_RETURN_TOPIC, json.dumps(event))
 
         db = self.SessionLocal()
         try:
@@ -271,7 +272,7 @@ class LedgerServiceQueueHandlerTests(unittest.IsolatedAsyncioTestCase):
         from ledger_service.app.models import JournalEntry, JournalLine
 
         event = {"correlation_id": "corr-zero", "claims": []}
-        await _handle_queue_message("eft_received_queue", json.dumps(event))
+        await _handle_queue_message(EFT_RECEIVED_TOPIC, json.dumps(event))
 
         db = self.SessionLocal()
         try:
@@ -291,7 +292,7 @@ class LedgerServiceConsumerTests(unittest.IsolatedAsyncioTestCase):
 
         with patch.dict("os.environ", {}, clear=True):
             # Should return without error when no connection string is configured
-            await asyncio.wait_for(_consume_queue("eft_received_queue"), timeout=1.0)
+            await asyncio.wait_for(_consume_queue(EFT_RECEIVED_TOPIC), timeout=1.0)
 
 
 if __name__ == "__main__":

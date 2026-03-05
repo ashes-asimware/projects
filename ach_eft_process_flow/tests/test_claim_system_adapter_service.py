@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from shared.events.topics import CLAIM_PAYMENT_POSTED_TOPIC
 _TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
@@ -61,7 +62,7 @@ class ClaimSystemAdapterTests(unittest.IsolatedAsyncioTestCase):
         api_mock.assert_awaited_once()
         send_mock.assert_called_once()
         _, kwargs = send_mock.call_args
-        self.assertEqual(kwargs["queue_name"], "claim_payment_posted_queue")
+        self.assertEqual(kwargs["queue_name"], CLAIM_PAYMENT_POSTED_TOPIC)
 
         db = self.SessionLocal()
         try:

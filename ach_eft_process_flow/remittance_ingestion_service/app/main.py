@@ -2,12 +2,13 @@ import hashlib
 import json
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from shared.middleware import apply_common_middleware
-from shared.events.schemas import ClaimReference, RemittanceReceived
+from shared.events.schemas import ClaimReference, RemittanceReceivedV1
+from shared.events.topics import REMITTANCE_RECEIVED_TOPIC
 from shared.servicebus.client import ServiceBusPublisher
 
 from .db import Base, SessionLocal, engine
@@ -115,12 +116,37 @@ def _build_correlation_id(parsed_data: Parsed835Data) -> str:
     return hashlib.sha256(correlation_source.encode("utf-8")).hexdigest()
 
 
+def _extract_remittance_payload(
+    request_body: RemittanceIngest835Request | None,
+    remittance_file: UploadFile | None,
+    remittance_text: str | None,
+) -> str:
+    if request_body and request_body.raw_835:
+        return request_body.raw_835
+    if remittance_text:
+        return remittance_text
+    if remittance_file is not None:
+        file_bytes = remittance_file.file.read()
+        try:
+            return file_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            return file_bytes.decode("utf-8", errors="ignore")
+    raise HTTPException(
+        status_code=422,
+        detail={"message": "Invalid 835 data", "errors": [{"type": "missing", "loc": ["raw_835"]}]},
+    )
+
+
 @app.post("/ingest-835")
 def ingest_835(
-    payload: RemittanceIngest835Request, db: Session = Depends(get_db)
-) -> RemittanceReceived:
+    payload: RemittanceIngest835Request | None = Body(None),
+    remittance_file: UploadFile | None = File(None),
+    remittance_data: str | None = Form(None),
+    db: Session = Depends(get_db),
+) -> RemittanceReceivedV1:
     try:
-        parsed_data = _parse_835(payload.raw_835)
+        raw_payload = _extract_remittance_payload(payload, remittance_file, remittance_data)
+        parsed_data = _parse_835(raw_payload)
     except ValidationError as exc:
         raise HTTPException(
             status_code=422,
@@ -132,12 +158,14 @@ def ingest_835(
     record = ProcessingRecord(
         external_id=parsed_data.trace_number,
         amount_cents=sum(c.amount_cents for c in parsed_data.claims),
+        raw_payload=raw_payload,
+        claims_json=json.dumps([c.model_dump() for c in parsed_data.claims]),
     )
     db.add(record)
     db.commit()
     db.refresh(record)
 
-    event = RemittanceReceived(
+    event = RemittanceReceivedV1(
         correlation_id=correlation_id,
         trace_number=parsed_data.trace_number,
         payer_id=parsed_data.payer_id,
@@ -149,7 +177,7 @@ def ingest_835(
     )
 
     publisher.send(
-        queue_name="remittance_received_queue",
+        queue_name=REMITTANCE_RECEIVED_TOPIC,
         message=event.model_dump_json(),
     )
 

@@ -10,8 +10,16 @@ from sqlalchemy.orm import Session
 from shared.middleware import apply_common_middleware
 from shared.events.schemas import (
     ClaimReference,
-    ReconciliationCompleted,
-    RemittanceException,
+    ReconciliationCompletedV1,
+    RemittanceExceptionV1,
+)
+from shared.events.topics import (
+    BANK_STATEMENT_TOPIC,
+    EFT_MATCHED_TOPIC,
+    EFT_RECEIVED_TOPIC,
+    PAYOUT_SENT_TOPIC,
+    RECONCILIATION_TOPIC,
+    REMITTANCE_RECEIVED_TOPIC,
 )
 from shared.servicebus.client import ServiceBusPublisher
 
@@ -22,9 +30,11 @@ from .schemas import ReconciliationServiceRequest
 logger = logging.getLogger(__name__)
 
 SUBSCRIBED_QUEUES = [
-    "bank_statement_queue",
-    "eft_received_queue",
-    "payout_sent_queue",
+    BANK_STATEMENT_TOPIC,
+    EFT_RECEIVED_TOPIC,
+    EFT_MATCHED_TOPIC,
+    REMITTANCE_RECEIVED_TOPIC,
+    PAYOUT_SENT_TOPIC,
 ]
 publisher = ServiceBusPublisher()
 
@@ -70,7 +80,7 @@ def _persist_transaction(
 
 def _publish_result(txn: BankTransaction, status: str, message: str) -> None:
     if status == "COMPLETED":
-        event = ReconciliationCompleted(
+        event = ReconciliationCompletedV1(
             correlation_id=txn.correlation_id,
             trace_number=txn.trace_number,
             payer_id=txn.payer_id,
@@ -78,7 +88,7 @@ def _publish_result(txn: BankTransaction, status: str, message: str) -> None:
             claims=[ClaimReference(**c) for c in json.loads(txn.claims_json)],
         )
     else:
-        event = RemittanceException(
+        event = RemittanceExceptionV1(
             correlation_id=txn.correlation_id,
             trace_number=txn.trace_number,
             payer_id=txn.payer_id,
@@ -86,7 +96,7 @@ def _publish_result(txn: BankTransaction, status: str, message: str) -> None:
             claims=[ClaimReference(**c) for c in json.loads(txn.claims_json)],
             reason=message,
         )
-    publisher.send(queue_name="reconciliation_queue", message=event.model_dump_json())
+    publisher.send(queue_name=RECONCILIATION_TOPIC, message=event.model_dump_json())
 
 
 def _reconcile(db: Session, correlation_id: str) -> ReconciliationResult | None:
@@ -123,7 +133,7 @@ async def _handle_queue_message(queue_name: str, body: str) -> ReconciliationRes
     claims = data.get("claims") or []
     correlation_id = data.get("correlation_id", "")
     amount_cents = _claims_total(claims)
-    direction = data.get("direction") or ("DEBIT" if queue_name == "payout_sent_queue" else "CREDIT")
+    direction = data.get("direction") or ("DEBIT" if queue_name == PAYOUT_SENT_TOPIC else "CREDIT")
     trace_number = data.get("trace_number", "")
     payer_id = data.get("payer_id", "")
     provider_id = data.get("provider_id", "")
