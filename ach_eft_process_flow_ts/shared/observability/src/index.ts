@@ -79,7 +79,7 @@ export const errorHandlingMiddleware = (
   res: Response,
   next: NextFunction
 ) => {
-  errorLogger.error({ err, correlationId: getCorrelationId() }, "Unhandled error");
+  errorLogger.error(err, "Unhandled error");
   if (res.headersSent) {
     return next(err);
   }

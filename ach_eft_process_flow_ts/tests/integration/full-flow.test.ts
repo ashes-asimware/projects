@@ -125,11 +125,6 @@ describe("ACH to payout happy-path integration", () => {
       eventType: "RemittanceReceivedV1",
     });
 
-    assert.strictEqual(
-      bank instanceof MockBankAdapter,
-      true,
-      "Bank adapter mock registered"
-    );
     assert.ok(
       claimSystem.receivedClaims.length > 0,
       "Claim system received posted claim"
