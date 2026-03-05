@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 
 class AchIngestionServiceRequest(BaseModel):
-    settlement_data: str
+    settlement_data: str | None = None
 
 
 class ParsedAchSettlementData(BaseModel):

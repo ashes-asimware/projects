@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from shared.events.topics import PAYOUT_SENT_TOPIC
 _TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
@@ -74,7 +75,7 @@ class BatchBuilderServiceTests(unittest.IsolatedAsyncioTestCase):
         bank_mock.assert_called_once()
         self.assertEqual(send_mock.call_count, 2)
         for _args, kwargs in send_mock.call_args_list:
-            self.assertEqual(kwargs["queue_name"], "payout_sent_queue")
+            self.assertEqual(kwargs["queue_name"], PAYOUT_SENT_TOPIC)
 
         db = self.SessionLocal()
         try:

@@ -9,7 +9,8 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from shared.middleware import apply_common_middleware
-from shared.events.schemas import BankStatementReceived, ClaimReference
+from shared.events.schemas import BankStatementReceivedV1, ClaimReference
+from shared.events.topics import BANK_STATEMENT_TOPIC
 from shared.servicebus.client import ServiceBusPublisher
 
 from .db import Base, SessionLocal, engine
@@ -18,7 +19,7 @@ from .schemas import Bai2IngestRequest, Camt053IngestRequest, ParsedBankStatemen
 
 logger = logging.getLogger(__name__)
 
-BANK_STATEMENT_QUEUE = "bank_statement_queue"
+BANK_STATEMENT_QUEUE = BANK_STATEMENT_TOPIC
 publisher = ServiceBusPublisher()
 
 
@@ -156,8 +157,8 @@ def _persist_record(db: Session, parsed: ParsedBankStatement, correlation_id: st
     return record
 
 
-def _publish_event(parsed: ParsedBankStatement, correlation_id: str) -> BankStatementReceived:
-    event = BankStatementReceived(
+def _publish_event(parsed: ParsedBankStatement, correlation_id: str) -> BankStatementReceivedV1:
+    event = BankStatementReceivedV1(
         correlation_id=correlation_id,
         trace_number=parsed.trace_number,
         payer_id=parsed.payer_id,
@@ -173,8 +174,8 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "bank_statement_ingestion_service"}
 
 
-@app.post("/ingest-bai2", response_model=BankStatementReceived)
-def ingest_bai2(payload: Bai2IngestRequest, db: Session = Depends(get_db)) -> BankStatementReceived:
+@app.post("/ingest-bai2", response_model=BankStatementReceivedV1)
+def ingest_bai2(payload: Bai2IngestRequest, db: Session = Depends(get_db)) -> BankStatementReceivedV1:
     try:
         parsed = _parse_bai2(payload.bai2_data)
     except ValidationError as exc:
@@ -188,8 +189,8 @@ def ingest_bai2(payload: Bai2IngestRequest, db: Session = Depends(get_db)) -> Ba
     return _publish_event(parsed, correlation_id)
 
 
-@app.post("/ingest-camt053", response_model=BankStatementReceived)
-def ingest_camt053(payload: Camt053IngestRequest, db: Session = Depends(get_db)) -> BankStatementReceived:
+@app.post("/ingest-camt053", response_model=BankStatementReceivedV1)
+def ingest_camt053(payload: Camt053IngestRequest, db: Session = Depends(get_db)) -> BankStatementReceivedV1:
     try:
         parsed = _parse_camt053(payload.camt053_xml)
     except ValidationError as exc:

@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 _TEST_DATABASE_URL = "sqlite:///:memory:"
+from shared.events.topics import EFT_MATCHED_TOPIC, EFT_RECEIVED_TOPIC, REMITTANCE_RECEIVED_TOPIC
 
 
 def _setup_test_db():
@@ -63,13 +64,13 @@ class PairingServiceMatchingTests(unittest.IsolatedAsyncioTestCase):
         }
 
         with patch("pairing_service.app.main.publisher.send", return_value=True) as send_mock:
-            await _handle_queue_message("eft_received_queue", json.dumps(eft_event))
-            result = await _handle_queue_message("remittance_received_queue", json.dumps(remittance_event))
+            await _handle_queue_message(EFT_RECEIVED_TOPIC, json.dumps(eft_event))
+            result = await _handle_queue_message(REMITTANCE_RECEIVED_TOPIC, json.dumps(remittance_event))
 
         self.assertIsNotNone(result)
         send_mock.assert_called_once()
         _, kwargs = send_mock.call_args
-        self.assertEqual(kwargs["queue_name"], "eft_matched_queue")
+        self.assertEqual(kwargs["queue_name"], EFT_MATCHED_TOPIC)
         payload = json.loads(kwargs["message"])
         self.assertEqual(payload["provider_id"], "provider-1")
         self.assertEqual(len(payload["claims"]), 2)
@@ -93,8 +94,8 @@ class PairingServiceMatchingTests(unittest.IsolatedAsyncioTestCase):
         }
 
         with patch("pairing_service.app.main.publisher.send", return_value=True) as send_mock:
-            await _handle_queue_message("remittance_received_queue", json.dumps(remittance_event))
-            result = await _handle_queue_message("eft_received_queue", json.dumps(eft_event))
+            await _handle_queue_message(REMITTANCE_RECEIVED_TOPIC, json.dumps(remittance_event))
+            result = await _handle_queue_message(EFT_RECEIVED_TOPIC, json.dumps(eft_event))
 
         self.assertIsNotNone(result)
         send_mock.assert_called_once()

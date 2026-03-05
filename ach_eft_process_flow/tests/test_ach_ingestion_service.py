@@ -9,6 +9,7 @@ from ach_ingestion_service.app.main import (
     ingest_ach,
 )
 from ach_ingestion_service.app.schemas import AchIngestionServiceRequest
+from shared.events.topics import EFT_RECEIVED_TOPIC
 
 
 class _FakeDB:
@@ -66,9 +67,10 @@ class AchIngestionServiceTests(unittest.IsolatedAsyncioTestCase):
 
         publish_mock.assert_awaited_once()
         _, kwargs = publish_mock.await_args
-        self.assertEqual(kwargs["topic_name"], "eft-received")
+        self.assertEqual(kwargs["topic_name"], EFT_RECEIVED_TOPIC)
         self.assertEqual(kwargs["correlation_id"], event.correlation_id)
         self.assertEqual(kwargs["payload"]["trace_number"], "trace-123")
+        self.assertEqual(fake_db.records[0].raw_data, request.settlement_data)
 
     async def test_ingest_ach_rejects_invalid_settlement_data(self) -> None:
         fake_db = _FakeDB()

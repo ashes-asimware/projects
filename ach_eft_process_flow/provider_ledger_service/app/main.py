@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
 from shared.middleware import apply_common_middleware
+from shared.events.topics import EFT_MATCHED_TOPIC, PROVIDER_BALANCE_UPDATED_TOPIC
 from shared.servicebus.client import ServiceBusPublisher
 
 from .db import Base, SessionLocal, engine
@@ -17,7 +18,7 @@ from .schemas import ProviderBalanceResponse
 
 logger = logging.getLogger(__name__)
 
-SUBSCRIBED_QUEUE = "eft_matched_queue"
+SUBSCRIBED_QUEUE = EFT_MATCHED_TOPIC
 
 
 def get_db() -> Session:
@@ -47,7 +48,7 @@ def _publish_balance_update(balance: ProviderBalance) -> None:
         "balance_cents": balance.balance_cents,
         "updated_at": balance.updated_at.isoformat(),
     }
-    publisher.send(queue_name="provider_balance_updates_queue", message=json.dumps(payload))
+    publisher.send(queue_name=PROVIDER_BALANCE_UPDATED_TOPIC, message=json.dumps(payload))
 
 
 async def _handle_queue_message(body: str) -> ProviderBalance:

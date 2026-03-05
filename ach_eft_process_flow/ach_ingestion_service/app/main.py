@@ -2,12 +2,13 @@ from contextlib import asynccontextmanager
 import hashlib
 import json
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from shared.middleware import apply_common_middleware
-from shared.events.schemas import ClaimReference, EFTReceived
+from shared.events.schemas import ClaimReference, EFTReceivedV1
+from shared.events.topics import EFT_RECEIVED_TOPIC
 from shared.servicebus.client import publish
 
 from .db import Base, SessionLocal, engine
@@ -78,10 +79,37 @@ def _build_correlation_id(parsed_data: ParsedAchSettlementData) -> str:
     return hashlib.sha256(correlation_source.encode("utf-8")).hexdigest()
 
 
+def _extract_settlement_payload(
+    request_body: AchIngestionServiceRequest | None,
+    settlement_file: UploadFile | None,
+    settlement_data: str | None,
+) -> str:
+    if request_body and request_body.settlement_data:
+        return request_body.settlement_data
+    if settlement_data:
+        return settlement_data
+    if settlement_file is not None:
+        file_bytes = settlement_file.file.read()
+        try:
+            return file_bytes.decode("utf-8")
+        except Exception:
+            return file_bytes.decode("utf-8", errors="ignore")
+    raise HTTPException(
+        status_code=422,
+        detail={"message": "Invalid ACH settlement data", "errors": [{"type": "missing", "loc": ["settlement_data"]}]},
+    )
+
+
 @app.post("/ingest-ach")
-async def ingest_ach(payload: AchIngestionServiceRequest, db: Session = Depends(get_db)) -> EFTReceived:
+async def ingest_ach(
+    payload: AchIngestionServiceRequest | None = Body(None),
+    settlement_file: UploadFile | None = File(None),
+    settlement_data: str | None = Form(None),
+    db: Session = Depends(get_db),
+) -> EFTReceivedV1:
     try:
-        parsed_data = _parse_ach_settlement_data(payload.settlement_data)
+        settlement_text = _extract_settlement_payload(payload, settlement_file, settlement_data)
+        parsed_data = _parse_ach_settlement_data(settlement_text)
     except ValidationError as exc:
         raise HTTPException(
             status_code=422,
@@ -89,12 +117,16 @@ async def ingest_ach(payload: AchIngestionServiceRequest, db: Session = Depends(
         ) from exc
     correlation_id = _build_correlation_id(parsed_data)
 
-    record = ProcessingRecord(external_id=parsed_data.trace_number, amount_cents=parsed_data.amount_cents)
+    record = ProcessingRecord(
+        external_id=parsed_data.trace_number,
+        amount_cents=parsed_data.amount_cents,
+        raw_data=settlement_text,
+    )
     db.add(record)
     db.commit()
     db.refresh(record)
 
-    event = EFTReceived(
+    event = EFTReceivedV1(
         correlation_id=correlation_id,
         trace_number=parsed_data.trace_number,
         payer_id=parsed_data.payer_id,
@@ -103,7 +135,7 @@ async def ingest_ach(payload: AchIngestionServiceRequest, db: Session = Depends(
     )
 
     await publish(
-        topic_name="eft-received",
+        topic_name=EFT_RECEIVED_TOPIC,
         payload=event.model_dump(mode="json"),
         correlation_id=event.correlation_id,
     )

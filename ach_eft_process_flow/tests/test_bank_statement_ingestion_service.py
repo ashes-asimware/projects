@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from shared.events.topics import BANK_STATEMENT_TOPIC
 _TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
@@ -68,7 +69,7 @@ class BankStatementIngestionTests(unittest.TestCase):
         self.assertEqual(data["claims"][0]["amount_cents"], 15000)
         send_mock.assert_called_once()
         _, kwargs = send_mock.call_args
-        self.assertEqual(kwargs["queue_name"], "bank_statement_queue")
+        self.assertEqual(kwargs["queue_name"], BANK_STATEMENT_TOPIC)
 
     def test_ingest_camt053_handles_xml_and_publishes(self) -> None:
         camt_xml = """
@@ -94,7 +95,7 @@ class BankStatementIngestionTests(unittest.TestCase):
         self.assertEqual(data["provider_id"], "provider-789")
         send_mock.assert_called_once()
         _, kwargs = send_mock.call_args
-        self.assertEqual(kwargs["queue_name"], "bank_statement_queue")
+        self.assertEqual(kwargs["queue_name"], BANK_STATEMENT_TOPIC)
 
 
 if __name__ == "__main__":

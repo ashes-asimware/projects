@@ -15,6 +15,7 @@ from remittance_ingestion_service.app.schemas import (
     Parsed835Data,
     RemittanceIngest835Request,
 )
+from shared.events.topics import REMITTANCE_RECEIVED_TOPIC
 
 
 class _FakeDB:
@@ -141,7 +142,7 @@ class Ingest835EndpointTests(unittest.TestCase):
 
         mock_publisher.send.assert_called_once()
         call_kwargs = mock_publisher.send.call_args
-        self.assertEqual(call_kwargs.kwargs["queue_name"], "remittance_received_queue")
+        self.assertEqual(call_kwargs.kwargs["queue_name"], REMITTANCE_RECEIVED_TOPIC)
         sent_payload = json.loads(call_kwargs.kwargs["message"])
         self.assertEqual(sent_payload["trace_number"], "TRACE-ABC")
 
@@ -155,6 +156,8 @@ class Ingest835EndpointTests(unittest.TestCase):
         self.assertEqual(len(fake_db.records), 1)
         self.assertEqual(fake_db.records[0].external_id, "TRACE-ABC")
         self.assertEqual(fake_db.records[0].amount_cents, 28000)
+        self.assertTrue(fake_db.records[0].raw_payload)
+        self.assertTrue(fake_db.records[0].claims_json)
 
     def test_ingest_835_from_json_payload(self) -> None:
         fake_db = _FakeDB()

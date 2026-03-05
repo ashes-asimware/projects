@@ -10,7 +10,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
 from shared.middleware import apply_common_middleware
-from shared.events.schemas import ClaimReference, ProviderPayoutInitiated
+from shared.events.schemas import ClaimReference, ProviderPayoutInitiatedV1
+from shared.events.topics import PAYOUT_INITIATED_TOPIC, PROVIDER_BALANCE_UPDATED_TOPIC
 from shared.servicebus.client import ServiceBusPublisher
 
 from .db import Base, SessionLocal, engine
@@ -19,7 +20,7 @@ from .schemas import PayoutInitiatedResponse, ProviderBalanceResponse
 
 logger = logging.getLogger(__name__)
 
-SUBSCRIBED_QUEUE = "provider_balance_updates_queue"
+SUBSCRIBED_QUEUE = PROVIDER_BALANCE_UPDATED_TOPIC
 
 
 def _payout_threshold_cents() -> int:
@@ -50,7 +51,7 @@ def _set_balance(db: Session, provider_id: str, balance_cents: int) -> ProviderB
     return record
 
 
-def _initiate_payout(db: Session, balance: ProviderBalance, amount_cents: int) -> ProviderPayoutInitiated:
+def _initiate_payout(db: Session, balance: ProviderBalance, amount_cents: int) -> ProviderPayoutInitiatedV1:
     correlation_id = f"payout-{balance.provider_id}-{uuid.uuid4().hex}"
     payout_record = PayoutRecord(
         provider_id=balance.provider_id,
@@ -62,18 +63,18 @@ def _initiate_payout(db: Session, balance: ProviderBalance, amount_cents: int) -
     balance.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(balance)
-    event = ProviderPayoutInitiated(
+    event = ProviderPayoutInitiatedV1(
         correlation_id=correlation_id,
         trace_number=balance.provider_id,
         payer_id="platform",
         provider_id=balance.provider_id,
         claims=[ClaimReference(claim_id="payout", amount_cents=amount_cents)],
     )
-    publisher.send(queue_name="payout_initiated_queue", message=event.model_dump_json())
+    publisher.send(queue_name=PAYOUT_INITIATED_TOPIC, message=event.model_dump_json())
     return event
 
 
-def _process_balance_update(db: Session, provider_id: str, balance_cents: int) -> ProviderPayoutInitiated | None:
+def _process_balance_update(db: Session, provider_id: str, balance_cents: int) -> ProviderPayoutInitiatedV1 | None:
     balance = _set_balance(db, provider_id, balance_cents)
     threshold = _payout_threshold_cents()
     if balance.balance_cents >= threshold:
@@ -81,7 +82,7 @@ def _process_balance_update(db: Session, provider_id: str, balance_cents: int) -
     return None
 
 
-async def _handle_queue_message(body: str) -> ProviderPayoutInitiated | None:
+async def _handle_queue_message(body: str) -> ProviderPayoutInitiatedV1 | None:
     data = json.loads(body)
     db = SessionLocal()
     try:

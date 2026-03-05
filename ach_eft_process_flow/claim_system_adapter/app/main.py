@@ -8,7 +8,8 @@ from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
 from shared.middleware import apply_common_middleware
-from shared.events.schemas import ClaimPaymentPosted, ClaimReference
+from shared.events.schemas import ClaimPaymentPostedV1, ClaimReference
+from shared.events.topics import CLAIM_PAYMENT_POSTED_TOPIC
 from shared.servicebus.client import ServiceBusPublisher
 
 from .db import Base, SessionLocal, engine
@@ -17,7 +18,7 @@ from .schemas import ClaimSystemAdapterRequest
 
 logger = logging.getLogger(__name__)
 
-SUBSCRIBED_QUEUE = "claim_payment_queue"
+SUBSCRIBED_QUEUE = CLAIM_PAYMENT_POSTED_TOPIC
 publisher = ServiceBusPublisher()
 
 
@@ -67,15 +68,15 @@ def _persist_claim_payment(db: Session, payload: ClaimSystemAdapterRequest) -> C
     return record
 
 
-def _publish_claim_posted(record: ClaimPaymentRecord) -> ClaimPaymentPosted:
-    event = ClaimPaymentPosted(
+def _publish_claim_posted(record: ClaimPaymentRecord) -> ClaimPaymentPostedV1:
+    event = ClaimPaymentPostedV1(
         correlation_id=record.claim_id,
         trace_number=record.claim_id,
         payer_id="platform",
         provider_id=record.provider_id,
         claims=[ClaimReference(claim_id=record.claim_id, amount_cents=record.amount_cents)],
     )
-    publisher.send(queue_name="claim_payment_posted_queue", message=event.model_dump_json())
+    publisher.send(queue_name=CLAIM_PAYMENT_POSTED_TOPIC, message=event.model_dump_json())
     return event
 
 
@@ -147,8 +148,8 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "claim_system_adapter"}
 
 
-@app.post("/process", response_model=ClaimPaymentPosted)
-async def process(payload: ClaimSystemAdapterRequest, db: Session = Depends(get_db)) -> ClaimPaymentPosted:
+@app.post("/process", response_model=ClaimPaymentPostedV1)
+async def process(payload: ClaimSystemAdapterRequest, db: Session = Depends(get_db)) -> ClaimPaymentPostedV1:
     record = _persist_claim_payment(db, payload)
     await _call_claim_system_api(payload)
     record.status = "PAID"

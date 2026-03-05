@@ -3,16 +3,27 @@ from datetime import datetime, timezone
 
 from shared.events.schemas import (
     ACHReturnReceived,
+    ACHReturnReceivedV1,
     BankStatementReceived,
+    BankStatementReceivedV1,
     ClaimPaymentPosted,
+    ClaimPaymentPostedV1,
     ClaimReference,
     EFTMatchedToRemittance,
+    EFTMatchedToRemittanceV1,
     EFTReceived,
+    EFTReceivedV1,
     NOCReceived,
+    NOCReceivedV1,
     ProviderPayoutInitiated,
+    ProviderPayoutInitiatedV1,
     ProviderPayoutSent,
+    ProviderPayoutSentV1,
     ReconciliationCompleted,
+    ReconciliationCompletedV1,
     RemittanceReceived,
+    RemittanceReceivedV1,
+    RemittanceExceptionV1,
     RemittanceException,
 )
 
@@ -21,16 +32,27 @@ class SharedEventSchemaTests(unittest.TestCase):
     def test_event_models_include_required_common_fields(self) -> None:
         event_classes = [
             EFTReceived,
+            EFTReceivedV1,
             RemittanceReceived,
+            RemittanceReceivedV1,
             EFTMatchedToRemittance,
+            EFTMatchedToRemittanceV1,
             ProviderPayoutInitiated,
+            ProviderPayoutInitiatedV1,
             ProviderPayoutSent,
+            ProviderPayoutSentV1,
             BankStatementReceived,
+            BankStatementReceivedV1,
             ReconciliationCompleted,
+            ReconciliationCompletedV1,
             ClaimPaymentPosted,
+            ClaimPaymentPostedV1,
             ACHReturnReceived,
+            ACHReturnReceivedV1,
             NOCReceived,
+            NOCReceivedV1,
             RemittanceException,
+            RemittanceExceptionV1,
         ]
 
         for event_class in event_classes:

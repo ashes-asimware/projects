@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from ach_ingestion_service.app import main as ach_main
@@ -15,13 +16,23 @@ from provider_ledger_service.app import main as provider_main
 from reconciliation_service.app import main as recon_main
 from remittance_ingestion_service.app import main as rem_main
 from remittance_ingestion_service.app.schemas import RemittanceIngest835Request
-from shared.events.schemas import ProviderPayoutInitiated
+from shared.events.schemas import ProviderPayoutInitiatedV1
+from shared.events.topics import (
+    BANK_STATEMENT_TOPIC,
+    EFT_MATCHED_TOPIC,
+    EFT_RECEIVED_TOPIC,
+    PAYOUT_SENT_TOPIC,
+    REMITTANCE_RECEIVED_TOPIC,
+)
 
 
 class FullFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_happy_path_flow(self) -> None:
         os.environ["PAYOUT_THRESHOLD_CENTS"] = "0"
         os.environ["BATCH_BUILDER_BATCH_SIZE"] = "1"
+        service_db = Path(__file__).resolve().parent.parent / "service.db"
+        if service_db.exists():
+            service_db.unlink()
 
         published: list[tuple[str, str]] = []
 
@@ -65,9 +76,9 @@ class FullFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )
             rem_event = rem_main.ingest_835(rem_request, db=rem_main.SessionLocal())
 
-            await pairing_main._handle_queue_message("eft_received_queue", ach_event.model_dump_json())
+            await pairing_main._handle_queue_message(EFT_RECEIVED_TOPIC, ach_event.model_dump_json())
             matched_event = await pairing_main._handle_queue_message(
-                "remittance_received_queue", rem_event.model_dump_json()
+                REMITTANCE_RECEIVED_TOPIC, rem_event.model_dump_json()
             )
             self.assertIsNotNone(matched_event)
 
@@ -78,7 +89,7 @@ class FullFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
             payout_event = payout_main._process_balance_update(
                 payout_db, provider_balance.provider_id, provider_balance.balance_cents
             )
-            self.assertIsInstance(payout_event, ProviderPayoutInitiated)
+            self.assertIsInstance(payout_event, ProviderPayoutInitiatedV1)
 
             sent_events = batch_main._enqueue_payout(payout_event, batch_main.SessionLocal())
             if not sent_events:
@@ -90,9 +101,9 @@ class FullFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
             bank_event = bank_main.ingest_bai2(bank_request, db=bank_main.SessionLocal())
             bank_event.correlation_id = payout_event.correlation_id
 
-            await recon_main._handle_queue_message("bank_statement_queue", bank_event.model_dump_json())
+            await recon_main._handle_queue_message(BANK_STATEMENT_TOPIC, bank_event.model_dump_json())
             if sent_events:
-                await recon_main._handle_queue_message("payout_sent_queue", sent_events[0].model_dump_json())
+                await recon_main._handle_queue_message(PAYOUT_SENT_TOPIC, sent_events[0].model_dump_json())
 
         self.assertGreaterEqual(len(published), 3)
 
