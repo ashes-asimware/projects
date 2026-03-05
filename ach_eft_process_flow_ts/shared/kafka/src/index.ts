@@ -50,11 +50,10 @@ let producerReadyPromise: Promise<void> | null = null;
 async function ensureProducer() {
   if (producerConnected) return;
   if (!producerReadyPromise) {
-    producerReadyPromise = producer.connect().then(() => {
-      producerConnected = true;
-    });
+    producerReadyPromise = producer.connect();
   }
   await producerReadyPromise;
+  producerConnected = true;
 }
 
 function resolveCorrelationId(
@@ -191,16 +190,7 @@ export async function subscribe<T>(
       });
     },
   });
-
-  const disconnect = async () => {
-    try {
-      await consumer.disconnect();
-    } catch (err) {
-      logger.error({ err }, "Error disconnecting Kafka consumer");
-    }
-  };
-  process.once("SIGINT", disconnect);
-  process.once("SIGTERM", disconnect);
+  registerConsumerForShutdown(consumer);
 }
 
 function parseEnvelope<T>(message: Message): EventEnvelope<T> | null {
@@ -232,6 +222,30 @@ function buildFallbackEnvelope(
     },
     payload: {},
   };
+}
+
+const registeredConsumers: Array<ReturnType<typeof kafka.consumer>> = [];
+let signalsRegistered = false;
+
+function registerConsumerForShutdown(
+  consumer: ReturnType<typeof kafka.consumer>
+) {
+  registeredConsumers.push(consumer);
+  if (signalsRegistered) {
+    return;
+  }
+  const disconnectAll = async () => {
+    for (const registered of registeredConsumers) {
+      try {
+        await registered.disconnect();
+      } catch (err) {
+        logger.error({ err }, "Error disconnecting Kafka consumer");
+      }
+    }
+  };
+  process.once("SIGINT", disconnectAll);
+  process.once("SIGTERM", disconnectAll);
+  signalsRegistered = true;
 }
 
 export { KafkaTopics };

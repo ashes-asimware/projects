@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { KafkaTopics, validateEvent } from '@shared/events';
+import { KafkaTopics } from '@shared/events';
 import { publish, subscribe } from '@shared/kafka';
 import { createLogger } from '@shared/observability';
 
@@ -20,21 +20,18 @@ export class AppService implements OnModuleInit {
 
   async publishPayout(body: any) {
     const payload = this.buildPayload(PUBLISH_EVENT_TYPE, body);
-    validateEvent(PUBLISH_EVENT_TYPE, payload);
     await publish(KafkaTopics.payoutSent, payload, PUBLISH_EVENT_TYPE);
     return { correlationId: payload.correlationId, eventType: payload.eventType };
   }
 
   async publishAchReturn(body: any) {
     const payload = this.buildPayload(ACH_RETURN_EVENT_TYPE, body);
-    validateEvent(ACH_RETURN_EVENT_TYPE, payload);
     await publish(KafkaTopics.achReturn, payload, ACH_RETURN_EVENT_TYPE);
     return { correlationId: payload.correlationId, eventType: payload.eventType };
   }
 
   async publishNoc(body: any) {
     const payload = this.buildPayload(NOC_EVENT_TYPE, body);
-    validateEvent(NOC_EVENT_TYPE, payload);
     await publish(KafkaTopics.nocReceived, payload, NOC_EVENT_TYPE);
     return { correlationId: payload.correlationId, eventType: payload.eventType };
   }
