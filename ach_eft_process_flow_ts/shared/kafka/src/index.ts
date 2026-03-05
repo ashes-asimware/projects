@@ -58,15 +58,22 @@ async function ensureProducer() {
   await producerReadyPromise;
 }
 
+function resolveCorrelationId(
+  ...candidates: Array<string | undefined | null>
+): string {
+  for (const candidate of candidates) {
+    if (candidate) return candidate;
+  }
+  return randomUUID();
+}
+
 export async function publish<T extends keyof typeof validators>(
   topic: keyof typeof KafkaTopics | string,
   payload: unknown,
   eventType: T
 ): Promise<void> {
   const correlationId =
-    (payload as any)?.correlationId ||
-    getCorrelationId() ||
-    randomUUID();
+    resolveCorrelationId((payload as any)?.correlationId, getCorrelationId());
 
   const parsed = validators[eventType].parse(payload);
   const envelope: EventEnvelope<typeof parsed> = {
@@ -105,6 +112,7 @@ export async function publish<T extends keyof typeof validators>(
     logger.error({ err, topic, eventType }, "Failed to publish event");
     try {
       await sendToDeadLetter(topic, envelope);
+      logger.warn({ topic, eventType, correlationId }, "Event redirected to DLQ after publish failure");
     } catch (dlqError) {
       logger.error({ dlqError, topic }, "Failed to send to DLQ after publish error");
     }
@@ -148,10 +156,10 @@ export async function subscribe<T>(
   await consumer.run({
     eachMessage: async ({ message }) => {
       const envelope = parseEnvelope<T>(message);
-      const correlationId =
-        envelope?.metadata?.correlationId ||
-        message.headers?.["x-correlation-id"]?.toString() ||
-        randomUUID();
+      const correlationId = resolveCorrelationId(
+        envelope?.metadata?.correlationId,
+        message.headers?.["x-correlation-id"]?.toString()
+      );
 
       await withCorrelationId(correlationId, async () => {
         const ctx = trace.setSpan(

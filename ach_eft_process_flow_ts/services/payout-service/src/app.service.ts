@@ -4,10 +4,11 @@ import { KafkaTopics, validateEvent } from '@shared/events';
 import { publish, subscribe } from '@shared/kafka';
 import { createLogger } from '@shared/observability';
 
+const PAYOUT_SENT_EVENT = 'ProviderPayoutSentV1';
+
 @Injectable()
 export class AppService implements OnModuleInit {
   private readonly logger = createLogger('payout-service');
-  private static readonly PAYOUT_SENT_EVENT = 'ProviderPayoutSentV1';
 
   async onModuleInit() {
     await subscribe(KafkaTopics.payoutInitiated, async (envelope) => {
@@ -16,9 +17,9 @@ export class AppService implements OnModuleInit {
   }
 
   async publishPayout(body: any) {
-    const payload = this.buildPayload(AppService.PAYOUT_SENT_EVENT, body);
-    validateEvent(AppService.PAYOUT_SENT_EVENT, payload);
-    await publish(KafkaTopics.payoutSent, payload, AppService.PAYOUT_SENT_EVENT);
+    const payload = this.buildPayload(PAYOUT_SENT_EVENT, body);
+    validateEvent(PAYOUT_SENT_EVENT, payload);
+    await publish(KafkaTopics.payoutSent, payload, PAYOUT_SENT_EVENT);
     return { correlationId: payload.correlationId, eventType: payload.eventType };
   }
 
