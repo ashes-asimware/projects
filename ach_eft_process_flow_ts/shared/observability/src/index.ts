@@ -2,6 +2,13 @@ import { AsyncLocalStorage } from "async_hooks";
 import pino from "pino";
 import { Request, Response, NextFunction } from "express";
 import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
+import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
@@ -74,21 +81,49 @@ export const createLogger = (name: string) =>
 const errorLogger = createLogger("http-error");
 
 export const errorHandlingMiddleware = (
-  err: any,
+  err: unknown,
   _req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  errorLogger.error(err, "Unhandled error");
+  const error = err instanceof Error ? err : new Error(String(err));
+  errorLogger.error(error, "Unhandled error");
   if (res.headersSent) {
-    return next(err);
+    return next(error);
   }
-  const status = (err && (err.status || err.statusCode)) || 500;
+  const status =
+    err instanceof HttpException
+      ? err.getStatus()
+      : (err as { status?: number; statusCode?: number })?.status ||
+        (err as { status?: number; statusCode?: number })?.statusCode ||
+        500;
   res.status(status).json({
-    message: err?.message || "Internal server error",
+    message: error?.message || "Internal server error",
     correlationId: getCorrelationId(),
   });
 };
+
+@Catch()
+export class GlobalErrorFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    const error = exception instanceof Error ? exception : new Error(String(exception));
+    errorLogger.error(error, "Unhandled error");
+    response.status(status).json({
+      message:
+        exception instanceof HttpException
+          ? exception.message
+          : "Internal server error",
+      correlationId: getCorrelationId(),
+    });
+  }
+}
 
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR);
 

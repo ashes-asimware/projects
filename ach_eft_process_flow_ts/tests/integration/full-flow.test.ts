@@ -2,11 +2,14 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import { KafkaTopics, validateEvent } from "../../shared/events/src";
 
-type Handler = (payload: any) => Promise<void> | void;
+type Handler = (payload: unknown) => Promise<void> | void;
+
+const asObject = (value: unknown) =>
+  typeof value === "object" && value !== null ? value : {};
 
 class KafkaTestHarness {
   private subscribers = new Map<string, Handler[]>();
-  public readonly observed: Array<{ topic: string; payload: any }> = [];
+  public readonly observed: Array<{ topic: string; payload: unknown }> = [];
 
   subscribe(topic: string, handler: Handler) {
     const handlers = this.subscribers.get(topic) || [];
@@ -35,12 +38,12 @@ class MockBankAdapter {
 
   private async handlePayout(payload: any) {
     await this.bus.publish(KafkaTopics.payoutSent, {
-      ...payload,
+      ...asObject(payload),
       eventType: "ProviderPayoutSentV1",
       timestamp: new Date().toISOString(),
     });
     await this.bus.publish(KafkaTopics.bankStatement, {
-      ...payload,
+      ...asObject(payload),
       eventType: "BankStatementReceivedV1",
       timestamp: new Date().toISOString(),
     });
@@ -49,7 +52,7 @@ class MockBankAdapter {
 
 class MockClaimSystem {
   private readonly bus: KafkaTestHarness;
-  public receivedClaims: any[] = [];
+  public receivedClaims: unknown[] = [];
 
   constructor(bus: KafkaTestHarness) {
     this.bus = bus;
@@ -79,7 +82,7 @@ describe("ACH to payout happy-path integration", () => {
     bus.subscribe(KafkaTopics.eftReceived, async (payload) => {
       validateEvent("EFTReceivedV1", payload);
       await bus.publish(KafkaTopics.eftMatched, {
-        ...payload,
+        ...asObject(payload),
         eventType: "EFTMatchedToRemittanceV1",
       });
     });
@@ -91,7 +94,7 @@ describe("ACH to payout happy-path integration", () => {
     bus.subscribe(KafkaTopics.eftMatched, async (payload) => {
       validateEvent("EFTMatchedToRemittanceV1", payload);
       await bus.publish(KafkaTopics.payoutInitiated, {
-        ...payload,
+        ...asObject(payload),
         eventType: "ProviderPayoutInitiatedV1",
       });
     });
@@ -103,7 +106,7 @@ describe("ACH to payout happy-path integration", () => {
     bus.subscribe(KafkaTopics.bankStatement, async (payload) => {
       validateEvent("BankStatementReceivedV1", payload);
       await bus.publish(KafkaTopics.reconciliationCompleted, {
-        ...payload,
+        ...asObject(payload),
         eventType: "ReconciliationCompletedV1",
       });
     });
@@ -111,7 +114,7 @@ describe("ACH to payout happy-path integration", () => {
     bus.subscribe(KafkaTopics.reconciliationCompleted, async (payload) => {
       validateEvent("ReconciliationCompletedV1", payload);
       await bus.publish(KafkaTopics.claimPaymentPosted, {
-        ...payload,
+        ...asObject(payload),
         eventType: "ClaimPaymentPostedV1",
       });
     });
