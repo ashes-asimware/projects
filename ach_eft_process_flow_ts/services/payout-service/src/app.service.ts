@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { KafkaTopics, validateEvent } from '@shared/events';
 import { publish, subscribe } from '@shared/kafka';
@@ -38,8 +39,8 @@ export class AppService implements OnModuleInit {
     return {
       eventType,
       eventVersion: '1',
-      correlationId: body?.correlationId || 'corr-' + Date.now(),
-      traceNumber: body?.traceNumber || 'trace-' + Date.now(),
+      correlationId: body?.correlationId || randomUUID(),
+      traceNumber: body?.traceNumber || randomUUID(),
       payerId: body?.payerId || 'payer-default',
       providerId: body?.providerId || 'provider-default',
       amount: Number(body?.amount || 0),

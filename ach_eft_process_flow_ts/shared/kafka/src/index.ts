@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { Kafka, Message } from "kafkajs";
 import { context, trace } from "@opentelemetry/api";
 import pino from "pino";
+import { z } from "zod";
 import {
   EventEnvelope,
   KafkaTopics,
@@ -18,6 +19,16 @@ export type EventHandler<T> = (envelope: EventEnvelope<T>) => Promise<void> | vo
 
 const logger = createLogger("shared-kafka");
 const tracer = getTracer();
+const envelopeSchema = z.object({
+  metadata: z.object({
+    correlationId: z.string(),
+    traceNumber: z.string(),
+    eventType: z.string(),
+    eventVersion: z.string(),
+    timestamp: z.string(),
+  }),
+  payload: z.any(),
+});
 
 const kafka = new Kafka({
   clientId: "ach-eft-platform",
@@ -100,11 +111,15 @@ async function sendToDeadLetter(
   envelope: EventEnvelope<unknown>
 ) {
   const dlq = `${typeof topic === "string" ? topic : KafkaTopics[topic]}.DLQ`;
-  await ensureProducer();
-  await producer.send({
-    topic: dlq,
-    messages: [{ value: JSON.stringify(envelope) }],
-  });
+  try {
+    await ensureProducer();
+    await producer.send({
+      topic: dlq,
+      messages: [{ value: JSON.stringify(envelope) }],
+    });
+  } catch (err) {
+    logger.error({ err, topic: dlq }, "Failed to send message to DLQ");
+  }
 }
 
 export async function subscribe<T>(
@@ -166,7 +181,13 @@ export async function subscribe<T>(
 function parseEnvelope<T>(message: Message): EventEnvelope<T> | null {
   if (!message.value) return null;
   try {
-    return JSON.parse(message.value.toString());
+    const parsedJson = JSON.parse(message.value.toString());
+    const validated = envelopeSchema.safeParse(parsedJson);
+    if (!validated.success) {
+      logger.warn({ issues: validated.error.format() }, "Invalid envelope received");
+      return null;
+    }
+    return validated.data as EventEnvelope<T>;
   } catch (err) {
     logger.warn({ err }, "Failed to parse message");
     return null;
