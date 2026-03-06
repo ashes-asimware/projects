@@ -7,8 +7,8 @@ async function bootstrap() {
   setupTracing(serviceName);
   const app = await NestFactory.create(AppModule, { logger: false });
   app.use(correlationIdMiddleware, requestLoggingMiddleware);
-  app.useGlobalFilters(new GlobalErrorFilter());
   app.use(errorHandlingMiddleware);
+  app.useGlobalFilters(new GlobalErrorFilter());
   const logger = createLogger(serviceName);
   app.useLogger(logger as any);
   const port = process.env.PORT || 3000;
