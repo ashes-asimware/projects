@@ -23,6 +23,7 @@ This workspace contains ten NestJS services and shared libraries that model the 
 ## Kafka Topics
 Topics are versioned and centralized in `@shared/events`:
 - `eft.received.v1`, `remittance.received.v1`, `eft.matched.v1`
+- `ledger.posted.v1`, `provider.ledger.updated.v1`, `ledger.settled.v1`
 - `payout.initiated.v1`, `payout.sent.v1`
 - `bank.statement.v1`, `reconciliation.completed.v1`
 - `claim.payment.posted.v1`, `ach.return.v1`, `noc.received.v1`

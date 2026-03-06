@@ -42,6 +42,11 @@ class MockBankAdapter {
       eventType: "ProviderPayoutSentV1",
       timestamp: new Date().toISOString(),
     });
+    await this.bus.publish(KafkaTopics.ledgerSettled, {
+      ...asObject(payload),
+      eventType: "LedgerSettlementPostedV1",
+      timestamp: new Date().toISOString(),
+    });
     await this.bus.publish(KafkaTopics.bankStatement, {
       ...asObject(payload),
       eventType: "BankStatementReceivedV1",
@@ -68,6 +73,17 @@ describe("ACH to payout happy-path integration", () => {
     // Instantiation registers mock handlers on the in-memory bus.
     const mockBankAdapter = new MockBankAdapter(bus);
     const mockClaimSystem = new MockClaimSystem(bus);
+    let lastEft: unknown = null;
+    let lastRemittance: unknown = null;
+
+    const attemptPairing = async () => {
+      if (!lastEft || !lastRemittance) return;
+      await bus.publish(KafkaTopics.eftMatched, {
+        ...asObject(lastEft),
+        ...asObject(lastRemittance),
+        eventType: "EFTMatchedToRemittanceV1",
+      });
+    };
 
     const baseEvent = {
       eventVersion: "1",
@@ -81,19 +97,33 @@ describe("ACH to payout happy-path integration", () => {
     };
 
     bus.subscribe(KafkaTopics.eftReceived, async (payload) => {
-      validateEvent("EFTReceivedV1", payload);
-      await bus.publish(KafkaTopics.eftMatched, {
+      lastEft = validateEvent("EFTReceivedV1", payload);
+      await bus.publish(KafkaTopics.ledgerPosted, {
         ...asObject(payload),
-        eventType: "EFTMatchedToRemittanceV1",
+        eventType: "LedgerEntryPostedV1",
       });
+      await attemptPairing();
+    });
+
+    bus.subscribe(KafkaTopics.ledgerPosted, (payload) => {
+      validateEvent("LedgerEntryPostedV1", payload);
     });
 
     bus.subscribe(KafkaTopics.remittanceReceived, (payload) => {
-      validateEvent("RemittanceReceivedV1", payload);
+      lastRemittance = validateEvent("RemittanceReceivedV1", payload);
+      return attemptPairing();
     });
 
     bus.subscribe(KafkaTopics.eftMatched, async (payload) => {
       validateEvent("EFTMatchedToRemittanceV1", payload);
+      await bus.publish(KafkaTopics.providerLedgerUpdated, {
+        ...asObject(payload),
+        eventType: "ProviderLedgerUpdatedV1",
+      });
+    });
+
+    bus.subscribe(KafkaTopics.providerLedgerUpdated, async (payload) => {
+      validateEvent("ProviderLedgerUpdatedV1", payload);
       await bus.publish(KafkaTopics.payoutInitiated, {
         ...asObject(payload),
         eventType: "ProviderPayoutInitiatedV1",
@@ -102,6 +132,10 @@ describe("ACH to payout happy-path integration", () => {
 
     bus.subscribe(KafkaTopics.payoutSent, (payload) => {
       validateEvent("ProviderPayoutSentV1", payload);
+    });
+
+    bus.subscribe(KafkaTopics.ledgerSettled, (payload) => {
+      validateEvent("LedgerSettlementPostedV1", payload);
     });
 
     bus.subscribe(KafkaTopics.bankStatement, async (payload) => {
@@ -137,10 +171,13 @@ describe("ACH to payout happy-path integration", () => {
     const topicsInOrder = bus.observed.map((e) => e.topic);
     assert.deepStrictEqual(topicsInOrder, [
       KafkaTopics.eftReceived,
-      KafkaTopics.eftMatched,
+      KafkaTopics.ledgerPosted,
       KafkaTopics.remittanceReceived,
+      KafkaTopics.eftMatched,
+      KafkaTopics.providerLedgerUpdated,
       KafkaTopics.payoutInitiated,
       KafkaTopics.payoutSent,
+      KafkaTopics.ledgerSettled,
       KafkaTopics.bankStatement,
       KafkaTopics.reconciliationCompleted,
       KafkaTopics.claimPaymentPosted,

@@ -31,11 +31,20 @@ export type RemittanceReceivedV1 = z.infer<typeof RemittanceReceivedV1Schema>;
 export const EFTMatchedToRemittanceV1Schema = createEventSchema("EFTMatchedToRemittanceV1");
 export type EFTMatchedToRemittanceV1 = z.infer<typeof EFTMatchedToRemittanceV1Schema>;
 
+export const LedgerEntryPostedV1Schema = createEventSchema("LedgerEntryPostedV1");
+export type LedgerEntryPostedV1 = z.infer<typeof LedgerEntryPostedV1Schema>;
+
+export const ProviderLedgerUpdatedV1Schema = createEventSchema("ProviderLedgerUpdatedV1");
+export type ProviderLedgerUpdatedV1 = z.infer<typeof ProviderLedgerUpdatedV1Schema>;
+
 export const ProviderPayoutInitiatedV1Schema = createEventSchema("ProviderPayoutInitiatedV1");
 export type ProviderPayoutInitiatedV1 = z.infer<typeof ProviderPayoutInitiatedV1Schema>;
 
 export const ProviderPayoutSentV1Schema = createEventSchema("ProviderPayoutSentV1");
 export type ProviderPayoutSentV1 = z.infer<typeof ProviderPayoutSentV1Schema>;
+
+export const LedgerSettlementPostedV1Schema = createEventSchema("LedgerSettlementPostedV1");
+export type LedgerSettlementPostedV1 = z.infer<typeof LedgerSettlementPostedV1Schema>;
 
 export const BankStatementReceivedV1Schema = createEventSchema("BankStatementReceivedV1");
 export type BankStatementReceivedV1 = z.infer<typeof BankStatementReceivedV1Schema>;
@@ -56,8 +65,11 @@ export type EventSchemas =
   | EFTReceivedV1
   | RemittanceReceivedV1
   | EFTMatchedToRemittanceV1
+  | LedgerEntryPostedV1
+  | ProviderLedgerUpdatedV1
   | ProviderPayoutInitiatedV1
   | ProviderPayoutSentV1
+  | LedgerSettlementPostedV1
   | BankStatementReceivedV1
   | ReconciliationCompletedV1
   | ClaimPaymentPostedV1
@@ -79,8 +91,11 @@ export const KafkaTopics = {
   eftReceived: "eft.received.v1",
   remittanceReceived: "remittance.received.v1",
   eftMatched: "eft.matched.v1",
+  ledgerPosted: "ledger.posted.v1",
+  providerLedgerUpdated: "provider.ledger.updated.v1",
   payoutInitiated: "payout.initiated.v1",
   payoutSent: "payout.sent.v1",
+  ledgerSettled: "ledger.settled.v1",
   bankStatement: "bank.statement.v1",
   reconciliationCompleted: "reconciliation.completed.v1",
   claimPaymentPosted: "claim.payment.posted.v1",
@@ -92,8 +107,11 @@ export const validators = {
   EFTReceivedV1: EFTReceivedV1Schema,
   RemittanceReceivedV1: RemittanceReceivedV1Schema,
   EFTMatchedToRemittanceV1: EFTMatchedToRemittanceV1Schema,
+  LedgerEntryPostedV1: LedgerEntryPostedV1Schema,
+  ProviderLedgerUpdatedV1: ProviderLedgerUpdatedV1Schema,
   ProviderPayoutInitiatedV1: ProviderPayoutInitiatedV1Schema,
   ProviderPayoutSentV1: ProviderPayoutSentV1Schema,
+  LedgerSettlementPostedV1: LedgerSettlementPostedV1Schema,
   BankStatementReceivedV1: BankStatementReceivedV1Schema,
   ReconciliationCompletedV1: ReconciliationCompletedV1Schema,
   ClaimPaymentPostedV1: ClaimPaymentPostedV1Schema,
