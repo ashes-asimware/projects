@@ -94,6 +94,8 @@ export const createLogger = (name: string) =>
 
 const errorLogger = createLogger("http-error");
 
+// Express-level fallback for errors that occur outside Nest's exception layer.
+// Nest-managed exceptions are handled separately by GlobalErrorFilter.
 export const errorHandlingMiddleware = (
   err: unknown,
   _req: Request,
