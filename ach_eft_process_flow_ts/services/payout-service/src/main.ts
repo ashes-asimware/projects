@@ -10,9 +10,9 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalErrorFilter());
   const logger = createLogger(serviceName);
   app.useLogger(logger as any);
-  app.use(errorHandlingMiddleware);
   const port = process.env.PORT || 3000;
   await app.listen(port);
+  app.use(errorHandlingMiddleware); // attach after Nest registers routes
   logger.info({ port }, 'Service listening');
 }
 
