@@ -6,13 +6,12 @@ async function bootstrap() {
   const serviceName = process.env.SERVICE_NAME || 'reconciliation-service';
   setupTracing(serviceName);
   const app = await NestFactory.create(AppModule, { logger: false });
-  const expressApp = app.getHttpAdapter().getInstance();
   app.use(correlationIdMiddleware, requestLoggingMiddleware);
   app.useGlobalFilters(new GlobalErrorFilter());
   const logger = createLogger(serviceName);
   app.useLogger(logger as any);
+  app.use(errorHandlingMiddleware);
   const port = process.env.PORT || 3000;
-  expressApp.use(errorHandlingMiddleware);
   await app.listen(port);
   logger.info({ port }, 'Service listening');
 }
