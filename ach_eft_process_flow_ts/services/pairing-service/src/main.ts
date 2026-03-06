@@ -10,7 +10,7 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalErrorFilter());
   const logger = createLogger(serviceName);
   app.useLogger(logger as any);
-  await app.init();
+  await app.init(); // register routes before attaching Express error handler
   app.use(errorHandlingMiddleware);
   const port = process.env.PORT || 3000;
   await app.listen(port);
