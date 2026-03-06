@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { correlationIdMiddleware, requestLoggingMiddleware, setupTracing, createLogger, GlobalErrorFilter } from '@shared/observability';
+import { correlationIdMiddleware, requestLoggingMiddleware, setupTracing, createLogger, GlobalErrorFilter, errorHandlingMiddleware } from '@shared/observability';
 
 async function bootstrap() {
   const serviceName = process.env.SERVICE_NAME || 'ledger-service';
@@ -10,6 +10,7 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalErrorFilter());
   const logger = createLogger(serviceName);
   app.useLogger(logger as any);
+  app.use(errorHandlingMiddleware); // Express-level fallback after filters
   const port = process.env.PORT || 3000;
   await app.listen(port);
   logger.info({ port }, 'Service listening');
