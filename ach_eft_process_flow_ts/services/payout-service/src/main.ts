@@ -12,8 +12,8 @@ async function bootstrap() {
   const logger = createLogger(serviceName);
   app.useLogger(logger as any);
   const port = process.env.PORT || 3000;
-  await app.listen(port);
   expressApp.use(errorHandlingMiddleware);
+  await app.listen(port);
   logger.info({ port }, 'Service listening');
 }
 
