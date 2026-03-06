@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { correlationIdMiddleware, requestLoggingMiddleware, setupTracing, createLogger, GlobalErrorFilter } from '@shared/observability';
+import { correlationIdMiddleware, requestLoggingMiddleware, setupTracing, createLogger, GlobalErrorFilter, errorHandlingMiddleware } from '@shared/observability';
 
 async function bootstrap() {
   const serviceName = process.env.SERVICE_NAME || 'reconciliation-service';
@@ -8,6 +8,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { logger: false });
   app.use(correlationIdMiddleware, requestLoggingMiddleware);
   app.useGlobalFilters(new GlobalErrorFilter());
+  app.use(errorHandlingMiddleware);
   const logger = createLogger(serviceName);
   app.useLogger(logger as any);
   const port = process.env.PORT || 3000;
