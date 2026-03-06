@@ -1,6 +1,12 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { KafkaTopics, validateEvent } from "../../shared/events/src";
+import {
+  EFTReceivedV1,
+  KafkaTopics,
+  RemittanceReceivedV1,
+  validateEvent,
+} from "../../shared/events/src";
+import { isPositiveFiniteAmount } from "../support/amount-validation";
 
 type Handler = (payload: unknown) => Promise<void> | void;
 
@@ -73,16 +79,34 @@ describe("ACH to payout happy-path integration", () => {
     // Instantiation registers mock handlers on the in-memory bus.
     const mockBankAdapter = new MockBankAdapter(bus);
     const mockClaimSystem = new MockClaimSystem(bus);
-    let lastEft: unknown = null;
-    let lastRemittance: unknown = null;
+    const eftQueue: EFTReceivedV1[] = [];
+    const remittanceQueue: RemittanceReceivedV1[] = [];
+    let pairingQueuePromise: Promise<void> = Promise.resolve();
+    let pairingProcessing = false;
 
-    const attemptPairing = async () => {
-      if (!lastEft || !lastRemittance) return;
-      await bus.publish(KafkaTopics.eftMatched, {
-        ...asObject(lastEft),
-        ...asObject(lastRemittance),
-        eventType: "EFTMatchedToRemittanceV1",
-      });
+    const processPairingQueue = async () => {
+      if (pairingProcessing) {
+        await pairingQueuePromise;
+        return;
+      }
+      pairingProcessing = true;
+      pairingQueuePromise = pairingQueuePromise
+        .then(async () => {
+          while (eftQueue.length > 0 && remittanceQueue.length > 0) {
+            const eft = eftQueue.shift()!;
+            const remittance = remittanceQueue.shift()!;
+            const matchedPayload = {
+              ...eft,
+              claims: remittance.claims ?? [],
+              eventType: "EFTMatchedToRemittanceV1",
+            };
+            await bus.publish(KafkaTopics.eftMatched, matchedPayload);
+          }
+        })
+        .finally(() => {
+          pairingProcessing = false;
+        });
+      await pairingQueuePromise;
     };
 
     const baseEvent = {
@@ -97,21 +121,23 @@ describe("ACH to payout happy-path integration", () => {
     };
 
     bus.subscribe(KafkaTopics.eftReceived, async (payload) => {
-      lastEft = validateEvent("EFTReceivedV1", payload);
+      const eft = validateEvent("EFTReceivedV1", payload);
+      eftQueue.push(eft);
       await bus.publish(KafkaTopics.ledgerPosted, {
         ...asObject(payload),
         eventType: "LedgerEntryPostedV1",
       });
-      await attemptPairing();
+      await processPairingQueue();
     });
 
     bus.subscribe(KafkaTopics.ledgerPosted, (payload) => {
       validateEvent("LedgerEntryPostedV1", payload);
     });
 
-    bus.subscribe(KafkaTopics.remittanceReceived, (payload) => {
-      lastRemittance = validateEvent("RemittanceReceivedV1", payload);
-      return attemptPairing();
+    bus.subscribe(KafkaTopics.remittanceReceived, async (payload) => {
+      const remittance = validateEvent("RemittanceReceivedV1", payload);
+      remittanceQueue.push(remittance);
+      await processPairingQueue();
     });
 
     bus.subscribe(KafkaTopics.eftMatched, async (payload) => {
@@ -123,9 +149,13 @@ describe("ACH to payout happy-path integration", () => {
     });
 
     bus.subscribe(KafkaTopics.providerLedgerUpdated, async (payload) => {
-      validateEvent("ProviderLedgerUpdatedV1", payload);
+      const providerUpdate = validateEvent("ProviderLedgerUpdatedV1", payload);
+      assert.ok(
+        isPositiveFiniteAmount(providerUpdate),
+        "Provider ledger update must carry a positive finite amount"
+      );
       await bus.publish(KafkaTopics.payoutInitiated, {
-        ...asObject(payload),
+        ...asObject(providerUpdate),
         eventType: "ProviderPayoutInitiatedV1",
       });
     });
