@@ -14,7 +14,8 @@
     "start": "npm run -ws start --if-present",
     "migrate": "npm run -ws migrate --if-present",
     "lint": "npm run -ws lint --if-present",
-    "test": "npm run -ws test --if-present"
+    "test": "npm run -ws test --if-present && npm run test:integration",
+    "test:integration": "ts-node tests/integration/full-flow.test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.11.17",

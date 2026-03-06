@@ -2,6 +2,13 @@ import { AsyncLocalStorage } from "async_hooks";
 import pino from "pino";
 import { Request, Response, NextFunction } from "express";
 import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
+import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
@@ -12,6 +19,20 @@ import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions"
 import { diag, DiagConsoleLogger, DiagLogLevel, trace } from "@opentelemetry/api";
 
 const asyncLocalStorage = new AsyncLocalStorage<{ correlationId: string }>();
+const DEFAULT_ERROR_MESSAGE = "Unhandled error";
+const normalizeError = (value: unknown): Error =>
+  value instanceof Error ? value : new Error(String(value));
+const resolveStatus = (value: unknown): number => {
+  if (value instanceof HttpException) {
+    return value.getStatus();
+  }
+  const candidate = value as { status?: number; statusCode?: number } | undefined;
+  return (
+    candidate?.status ??
+    candidate?.statusCode ??
+    HttpStatus.INTERNAL_SERVER_ERROR
+  );
+};
 
 export const getCorrelationId = () =>
   asyncLocalStorage.getStore()?.correlationId;
@@ -70,6 +91,45 @@ export const createLogger = (name: string) =>
       return { correlationId: getCorrelationId() };
     },
   });
+
+const errorLogger = createLogger("http-error");
+
+export const errorHandlingMiddleware = (
+  err: unknown,
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const error = normalizeError(err);
+  errorLogger.error(error, "Unhandled error");
+  if (res.headersSent) {
+    return next(error);
+  }
+  const status = resolveStatus(err);
+  res.status(status).json({
+    message: error.message || DEFAULT_ERROR_MESSAGE,
+    correlationId: getCorrelationId(),
+  });
+};
+
+@Catch()
+export class GlobalErrorFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const status = resolveStatus(exception);
+
+    const error = normalizeError(exception);
+    errorLogger.error(error, "Unhandled error");
+    response.status(status).json({
+      message:
+        exception instanceof HttpException
+          ? exception.message
+          : DEFAULT_ERROR_MESSAGE,
+      correlationId: getCorrelationId(),
+    });
+  }
+}
 
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR);
 
