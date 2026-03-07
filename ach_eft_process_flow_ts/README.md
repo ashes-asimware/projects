@@ -1,54 +1,74 @@
 # ACH / EFT Process Flow (TypeScript)
 
-This workspace contains ten NestJS services and shared libraries that model the end-to-end ACH and ERA payment lifecycle. Services communicate exclusively through Kafka topics with versioned schemas and share common observability, authentication, and error-handling middleware.
+Event-driven NestJS services model the ACH + ERA lifecycle using Kafka topics and shared utilities for schema validation, observability, and messaging safety.
 
 ## Architecture Overview
-- **Event-driven microservices** with Kafka topics for domain events.
-- **Shared libraries**: `@shared/observability` (Pino logging, OpenTelemetry tracing, correlation IDs, error middleware), `@shared/events` (schemas and topics), `@shared/kafka` (publish/subscribe helpers).
-- **Data**: Each service owns its own Postgres database managed via Prisma migrations.
-- **Deployment**: Each service ships with a multi-stage Dockerfile that builds shared libraries and the service, runs migrations, then starts the compiled app.
+- **Event-driven microservices**: Services publish and subscribe to Kafka topics for every state change (no direct service-to-service HTTP calls).
+- **Shared libraries**:
+  - `@shared/events`: Kafka topic names plus Zod schemas for every event type.
+  - `@shared/kafka`: Kafkajs publisher/consumer helpers with DLQ fallback, correlation IDs, and tracing spans.
+  - `@shared/observability`: Pino logging, correlation ID propagation, Nest exception filter + Express error middleware, and OpenTelemetry tracing bootstrap.
+- **Runtime**: Each service runs as a NestJS app; `docker-compose.yml` provisions Kafka/ZooKeeper and Postgres containers for local persistence scaffolding.
+- **Configuration**: `.env.example` lists the per-service database URLs, API keys, and Kafka broker settings expected at runtime.
 
 ## Service Responsibilities
-- **ach-ingestion-service**: Accepts ACH/EFT payloads and emits `eft.received.v1`.
-- **remittance-ingestion-service**: Accepts ERA/remittance files and emits `remittance.received.v1`.
-- **pairing-service**: Pairs EFT and remittance data; emits `eft.matched.v1`.
-- **ledger-service**: Posts financial ledger movements driven by matched EFTs.
-- **provider-ledger-service**: Maintains provider-level balances.
-- **payout-service**: Initiates provider payouts and emits `payout.initiated.v1`.
-- **batch-builder-service**: Groups payouts into outbound batches.
-- **bank-statement-service**: Ingests bank statements and emits `bank.statement.v1`.
-- **reconciliation-service**: Reconciles statements and emits `reconciliation.completed.v1`.
-- **claim-system-adapter**: Posts claim payment updates downstream.
+| Service | HTTP ingress | Consumes topics | Publishes topics | Purpose |
+| --- | --- | --- | --- | --- |
+| ach-ingestion-service | `POST /eft` | — | `eft.received.v1` | Accept inbound ACH/EFT payloads and emit receipt events. |
+| remittance-ingestion-service | `POST /remittance` | — | `remittance.received.v1` | Accept ERA/remittance files and emit receipt events. |
+| pairing-service | `POST /pair` | `eft.received.v1`, `remittance.received.v1` | `eft.matched.v1` | Pair EFTs to remittances and emit match events. |
+| ledger-service | `POST /payout` | `eft.matched.v1` | `payout.initiated.v1` | Trigger payout initiation after matches. |
+| provider-ledger-service | `POST /provider-payout` | `payout.initiated.v1` | `payout.sent.v1` | Mirror provider ledger impacts when payouts are initiated. |
+| batch-builder-service | `POST /batch` | `payout.initiated.v1` | `payout.sent.v1` | Build outbound payout batches and emit send confirmations. |
+| payout-service | `POST /payout`, `POST /ach-return`, `POST /noc` | `payout.initiated.v1` | `payout.sent.v1`, `ach.return.v1`, `noc.received.v1` | Simulate bank disbursement, ACH returns, and NOCs. |
+| bank-statement-service | `POST /statement` | `payout.sent.v1` | `bank.statement.v1` | Ingest bank statements tied to sent payouts. |
+| reconciliation-service | `POST /reconcile` | `bank.statement.v1`, `payout.sent.v1` | `reconciliation.completed.v1` | Reconcile statements and payouts, emitting reconciliation results. |
+| claim-system-adapter | `POST /claim` | `reconciliation.completed.v1` | `claim.payment.posted.v1` | Push posted claim payments to downstream claim systems. |
+
+Every service also exposes `GET /health` for readiness checks and applies shared logging, tracing, correlation IDs, and global error handling middleware.
 
 ## Kafka Topics
-Topics are versioned and centralized in `@shared/events`:
-- `eft.received.v1`, `remittance.received.v1`, `eft.matched.v1`
-- `ledger.posted.v1`, `provider.ledger.updated.v1`, `ledger.settled.v1`
-- `payout.initiated.v1`, `payout.sent.v1`
-- `bank.statement.v1`, `reconciliation.completed.v1`
-- `claim.payment.posted.v1`, `ach.return.v1`, `noc.received.v1`
+Centralized in `shared/events/src/index.ts`:
+- Ingestion & pairing: `eft.received.v1`, `remittance.received.v1`, `eft.matched.v1`
+- Ledger & payouts: `payout.initiated.v1`, `payout.sent.v1`, `ledger.settled.v1`, `provider.ledger.updated.v1`
+- Reconciliation: `bank.statement.v1`, `reconciliation.completed.v1`
+- Downstream/returns: `claim.payment.posted.v1`, `ach.return.v1`, `noc.received.v1`, `ledger.posted.v1`
 
 ## Event Schemas
-All event payloads are validated with Zod. Core fields:
-- `eventType`, `eventVersion`, `correlationId`, `traceNumber`, `payerId`, `providerId`, `amount`, optional `claims[]`, and `timestamp`.
-Schemas live in `shared/events/src/index.ts` and are exported per event type (e.g., `EFTReceivedV1Schema`, `ProviderPayoutInitiatedV1Schema`).
+All events share the same validated shape (Zod schemas in `shared/events/src/index.ts`):
+
+```ts
+{
+  eventType: "<EventName>V1",
+  eventVersion: "1",
+  correlationId: string,
+  traceNumber: string,
+  payerId: string,
+  providerId: string,
+  amount: number,
+  claims?: Array<{ claimId: string; amount: number }>,
+  timestamp: string
+}
+```
+
+Schema exports (e.g., `EFTReceivedV1Schema`, `ProviderPayoutSentV1Schema`) plus a `validateEvent` helper enforce payload correctness before publish/consume.
 
 ## API Endpoints
-Every service exposes:
-- `POST /ingest` (where applicable) to accept source data and publish events.
-- `GET /health` for readiness probes.
+Service HTTP entry points mirror the table above. Typical usage:
+- `POST /eft` or `/remittance` with payload fields matching the schemas to start the flow.
+- `POST /payout` (payout-service) to simulate sending funds; `POST /ach-return` and `POST /noc` to emit returns/NOCs.
+- Every service: `GET /health` returns `{ status: "ok", service: "<name>" }`.
 
-Cross-cutting middleware applied to all services:
-- API key validation via `ApiKeyMiddleware`.
-- Correlation ID + structured request logging.
-- OpenTelemetry tracing initialization.
-- Error-handling middleware returning JSON with correlation IDs.
+Requests may include `x-correlation-id` to propagate tracing across events.
 
-## Running Locally
-1. Install dependencies: `npm install --workspaces --include-workspace-root`.
-2. Start infra and services: `docker-compose up --build`.
-3. Services read configuration from `.env` (see `.env.example` for required DB URLs and API keys).
+## How to run locally
+1. Install dependencies: `npm install`.
+2. Copy environment: `cp .env.example .env` and fill service DB URLs/API keys.
+3. Start infrastructure and services: `docker-compose up --build`.
+   - Kafka brokers default to `kafka:9092`; override via `KAFKA_BROKERS` if needed.
+4. Develop a single service locally with hot reload: `npm run dev --workspace services/<service-name>`.
 
-## Running Tests
-- Run TypeScript builds/lint: `npm run build` / `npm run lint`.
-- Integration flow test (Kafka harness with mocked adapters): `npm test` or `npm run test:integration`.
+## How to run tests
+- Full suite (unit + integration harness): `npm test`.
+- Unit only (amount validation helper): `npm run test:unit`.
+- Integration flow (in-memory Kafka harness): `npm run test:integration`.
