@@ -1,0 +1,50 @@
+services:
+  
+  mongo:
+    container_name: ms_mongo
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - "./mongo/db:/data/db"
+
+  nginx:
+    build: ./nginx
+    container_name: ms_nginx
+    links:
+      - store
+      - users
+    ports:
+      - "80:80"
+
+  store:
+    build: ./store
+    container_name: ms_store
+    environment:
+    - log_level=none
+    links:
+    - "mongo:mongo"
+    volumes:
+    - "./store:/src/app"
+    working_dir: "/src/app"
+    ports:
+    - "8080:8080"
+    - "5858:5858"
+    # command: npm run start
+    command: npm start
+
+  users:
+    build: ./users
+    container_name: ms_users
+    environment:
+    - log_level=none
+    links:
+    - "mongo:mongo"
+    volumes:
+    - "./users:/src/app"
+    working_dir: "/src/app"
+    ports:
+    - "8081:8080"
+    - "5859:5858"
+    # command: npm run start
+    command: npm start
