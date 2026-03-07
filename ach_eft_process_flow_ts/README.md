@@ -17,7 +17,7 @@ Event-driven NestJS services model the ACH + ERA lifecycle using Kafka topics an
 | ach-ingestion-service | `POST /eft` | — | `eft.received.v1` | Accept inbound ACH/EFT payloads and emit receipt events. |
 | remittance-ingestion-service | `POST /remittance` | — | `remittance.received.v1` | Accept ERA/remittance files and emit receipt events. |
 | pairing-service | `POST /pair` | `eft.received.v1`, `remittance.received.v1` | `eft.matched.v1` | Pair EFTs to remittances and emit match events. |
-| ledger-service | `POST /payout` | `eft.matched.v1` | `payout.initiated.v1` | Payout initiation stub invoked after matches (service name reflects intended ledger ownership). |
+| ledger-service | `POST /payout` | `eft.matched.v1` | `payout.initiated.v1` | Triggers payout initiation after matches (legacy name; see note below). |
 | provider-ledger-service | `POST /provider-payout` | `payout.initiated.v1` | `payout.sent.v1` | Emits payout sent confirmations when provider ledger updates are applied. |
 | batch-builder-service | `POST /batch` | `payout.initiated.v1` | `payout.sent.v1` | Builds outbound payout batches and emits payout sent confirmations. |
 | payout-service | `POST /payout`, `POST /ach-return`, `POST /noc` | `payout.initiated.v1` | `payout.sent.v1`, `ach.return.v1`, `noc.received.v1` | Simulate bank disbursement, ACH returns, and NOCs. |
@@ -25,7 +25,13 @@ Event-driven NestJS services model the ACH + ERA lifecycle using Kafka topics an
 | reconciliation-service | `POST /reconcile` | `bank.statement.v1`, `payout.sent.v1` | `reconciliation.completed.v1` | Reconcile statements and payouts, emitting reconciliation results. |
 | claim-system-adapter | `POST /claim` | `reconciliation.completed.v1` | `claim.payment.posted.v1` | Push posted claim payments to downstream claim systems. |
 
-_Note: This scaffold intentionally allows both provider-ledger-service and batch-builder-service to publish `payout.sent.v1` to illustrate multiple producers; pick a single owner topic in production designs._
+### Ledger-service naming note
+This codebase keeps the legacy name even though it only kicks off payouts today; consider renaming to `payout-initiation-service` (or relocating the logic) once ledger posting is implemented to avoid confusion.
+
+> ⚠️ **Publisher configuration warning**
+> - This codebase allows provider-ledger-service, batch-builder-service, **and** payout-service to publish `payout.sent.v1`.
+> - Treat **payout-service** as the canonical publisher in non-demo environments (staging/production or full-stack testing); the others are for isolated demos and should be disabled via deployment/config (e.g., add a service-level flag such as `DISABLE_PAYOUT_SENT_PRODUCER=true` or avoid deploying those services/endpoints).
+> - The repo does not enforce this automatically—add startup validation in production that fails if more than one `payout.sent.v1` publisher is enabled (e.g., in service bootstraps or deploy pipelines). Until then, do not deploy provider-ledger-service or batch-builder-service alongside payout-service in production environments.
 
 Every service also exposes `GET /health` for readiness checks and applies shared logging, tracing, correlation IDs, and global error handling middleware.
 
@@ -41,7 +47,7 @@ All events share the same validated shape (Zod schemas in `shared/events/src/ind
 
 ```ts
 {
-  eventType: "<EventName>V1",
+  eventType: "EFTReceivedV1",  // must match the PascalCase schema name defined in shared/events/src/index.ts (not the topic string)
   eventVersion: "1",
   correlationId: string,
   traceNumber: string,
@@ -52,6 +58,8 @@ All events share the same validated shape (Zod schemas in `shared/events/src/ind
   timestamp: string
 }
 ```
+
+`eventType` values follow the PascalCase schema exports in `shared/events/src/index.ts` (e.g., `EFTReceivedV1`), while Kafka topic names use dot-case (e.g., `eft.received.v1`).
 
 Schema exports (e.g., `EFTReceivedV1Schema`, `ProviderPayoutSentV1Schema`) plus a `validateEvent` helper enforce payload correctness before publish/consume.
 
@@ -64,7 +72,7 @@ Service HTTP entry points mirror the table above. Typical usage:
 Requests may include `x-correlation-id` to propagate tracing across events.
 
 ## How to run locally
-1. Install dependencies: `npm install`.
+1. Install dependencies: `npm install --workspaces --include-workspace-root`.
 2. Copy environment: `cp .env.example .env` and fill service DB URLs/API keys.
 3. Start infrastructure and services: `docker-compose up --build`.
    - Kafka brokers default to `kafka:9092`; override via `KAFKA_BROKERS` if needed.
