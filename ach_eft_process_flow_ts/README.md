@@ -17,13 +17,15 @@ Event-driven NestJS services model the ACH + ERA lifecycle using Kafka topics an
 | ach-ingestion-service | `POST /eft` | — | `eft.received.v1` | Accept inbound ACH/EFT payloads and emit receipt events. |
 | remittance-ingestion-service | `POST /remittance` | — | `remittance.received.v1` | Accept ERA/remittance files and emit receipt events. |
 | pairing-service | `POST /pair` | `eft.received.v1`, `remittance.received.v1` | `eft.matched.v1` | Pair EFTs to remittances and emit match events. |
-| ledger-service | `POST /payout` | `eft.matched.v1` | `payout.initiated.v1` | Trigger payout initiation after matches. |
-| provider-ledger-service | `POST /provider-payout` | `payout.initiated.v1` | `payout.sent.v1` | Mirror provider ledger impacts when payouts are initiated. |
-| batch-builder-service | `POST /batch` | `payout.initiated.v1` | `payout.sent.v1` | Build outbound payout batches and emit send confirmations. |
+| ledger-service | `POST /payout` | `eft.matched.v1` | `payout.initiated.v1` | Payout initiation stub invoked after matches (service name reflects intended ledger ownership). |
+| provider-ledger-service | `POST /provider-payout` | `payout.initiated.v1` | `payout.sent.v1` | Emits payout sent confirmations when provider ledger updates are applied. |
+| batch-builder-service | `POST /batch` | `payout.initiated.v1` | `payout.sent.v1` | Builds outbound payout batches and emits payout sent confirmations. |
 | payout-service | `POST /payout`, `POST /ach-return`, `POST /noc` | `payout.initiated.v1` | `payout.sent.v1`, `ach.return.v1`, `noc.received.v1` | Simulate bank disbursement, ACH returns, and NOCs. |
 | bank-statement-service | `POST /statement` | `payout.sent.v1` | `bank.statement.v1` | Ingest bank statements tied to sent payouts. |
 | reconciliation-service | `POST /reconcile` | `bank.statement.v1`, `payout.sent.v1` | `reconciliation.completed.v1` | Reconcile statements and payouts, emitting reconciliation results. |
 | claim-system-adapter | `POST /claim` | `reconciliation.completed.v1` | `claim.payment.posted.v1` | Push posted claim payments to downstream claim systems. |
+
+_Note: This scaffold intentionally allows both provider-ledger-service and batch-builder-service to publish `payout.sent.v1` to illustrate multiple producers; pick a single owner topic in production designs._
 
 Every service also exposes `GET /health` for readiness checks and applies shared logging, tracing, correlation IDs, and global error handling middleware.
 
