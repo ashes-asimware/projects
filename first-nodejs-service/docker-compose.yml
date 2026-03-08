@@ -1,3 +1,4 @@
+version: '3.8'
 services:
   
   mongo:
@@ -20,31 +21,25 @@ services:
   store:
     build: ./store
     container_name: ms_store
-    environment:
-    - log_level=none
-    links:
-    - "mongo:mongo"
+    depends_on:
+        - "mongo"
     volumes:
-    - "./store:/src/app"
+        - "./store:/src/app"
     working_dir: "/src/app"
     ports:
-    - "8080:8080"
-    - "5858:5858"
+        - "3004:3000"
     # command: npm run start
-    command: npm start
+    command: npm run start
 
   users:
     build: ./users
     container_name: ms_users
-    environment:
-    - log_level=none
-    links:
-    - "mongo:mongo"
+    depends_on:
+        - "mongo"
     volumes:
-    - "./users:/src/app"
+        - "./users:/src/app"
     working_dir: "/src/app"
     ports:
-    - "8081:8080"
-    - "5859:5858"
+        - "3006:3000"
     # command: npm run start
-    command: npm start
+    command: npm run start
