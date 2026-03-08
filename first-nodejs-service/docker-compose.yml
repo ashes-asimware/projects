@@ -1,0 +1,45 @@
+version: '3.8'
+services:
+  
+  mongo:
+    container_name: ms_mongo
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - "./mongo/db:/data/db"
+
+  nginx:
+    build: ./nginx
+    container_name: ms_nginx
+    links:
+      - store
+      - users
+    ports:
+      - "80:80"
+
+  store:
+    build: ./store
+    container_name: ms_store
+    depends_on:
+        - "mongo"
+    volumes:
+        - "./store:/src/app"
+    working_dir: "/src/app"
+    ports:
+        - "3004:3000"
+    # command: npm run start
+    command: npm run start
+
+  users:
+    build: ./users
+    container_name: ms_users
+    depends_on:
+        - "mongo"
+    volumes:
+        - "./users:/src/app"
+    working_dir: "/src/app"
+    ports:
+        - "3006:3000"
+    # command: npm run start
+    command: npm run start
