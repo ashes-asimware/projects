@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build and coverage output
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime and process files
+pids/
+*.pid
+*.pid.lock
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Package manager and tool caches
+.npm/
+.pnpm-store/
+.yarn/
+.parcel-cache/
+.eslintcache
+*.tsbuildinfo
+
+# Framework outputs
+.next/
+.nuxt/
+.svelte-kit/
+
+# OS/editor artifacts
+.DS_Store
+Thumbs.db
